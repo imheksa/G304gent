@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { useAuth } from "@/lib/auth-context";
 import { generateData, getSavedBrands, getCompetitorNames } from "@/lib/brand-data";
 
 export default function ComparePage() {
@@ -15,18 +14,11 @@ export default function ComparePage() {
 }
 
 function CompareInner() {
-  const { user, loading, signOut } = useAuth();
   const searchParams = useSearchParams();
   const [brandA, setBrandA] = useState(searchParams.get("a") || "");
   const [brandB, setBrandB] = useState(searchParams.get("b") || "");
   const [myBrands, setMyBrands] = useState<string[]>([]);
   const [competitors, setCompetitors] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      window.location.href = "/G304gent/login";
-    }
-  }, [user, loading]);
 
   useEffect(() => {
     const mb = getSavedBrands();
@@ -36,16 +28,6 @@ function CompareInner() {
     if (!brandA && mb.length > 0) setBrandA(mb[0]);
     if (!brandB && comp.length > 0) setBrandB(comp[0]);
   }, []);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (!user) return null;
 
   const dataA = brandA ? generateData(brandA) : null;
   const dataB = brandB ? generateData(brandB) : null;
@@ -65,19 +47,8 @@ function CompareInner() {
           <div className="flex items-center gap-6">
             <a href="/G304gent/brands" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">My Brands</a>
             <a href="/G304gent/compare" className="text-sm text-cyan-400 font-medium">Compare</a>
+            <a href="/G304gent/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Dashboard</a>
             <a href="/G304gent/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
-            <button
-              onClick={async () => { await signOut(); window.location.href = "/G304gent/"; }}
-              className="flex items-center"
-            >
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="" className="h-7 w-7 rounded-full border border-white/10" referrerPolicy="no-referrer" />
-              ) : (
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-violet-500 text-xs font-bold text-white">
-                  {(user.displayName || user.email || "U")[0].toUpperCase()}
-                </div>
-              )}
-            </button>
           </div>
         </div>
       </nav>

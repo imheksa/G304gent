@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
 import {
   generateData,
   getBrandProfiles,
@@ -18,7 +17,6 @@ import {
 } from "@/lib/brand-data";
 
 export default function BrandsPage() {
-  const { user, loading, signOut } = useAuth();
   const [brands, setBrands] = useState<BrandProfile[]>([]);
   const [competitors, setCompetitors] = useState<BrandProfile[]>([]);
   const [tier, setTier] = useState<SubscriptionTier>("free");
@@ -28,12 +26,6 @@ export default function BrandsPage() {
   const [editComp, setEditComp] = useState<BrandProfile | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"brands" | "competitors">("brands");
-
-  useEffect(() => {
-    if (!loading && !user) {
-      window.location.href = "/G304gent/login";
-    }
-  }, [user, loading]);
 
   useEffect(() => {
     refresh();
@@ -71,16 +63,6 @@ export default function BrandsPage() {
     setDeleteConfirm(null);
   }
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
   const compLimit = TIER_LIMITS[tier];
   const canAddComp = competitors.length < compLimit;
   const allBrandNames = [...brands.map((b) => b.name), ...competitors.map((c) => c.name)];
@@ -99,19 +81,8 @@ export default function BrandsPage() {
           <div className="flex items-center gap-6">
             <a href="/G304gent/brands" className="text-sm text-cyan-400 font-medium">My Brands</a>
             <a href="/G304gent/compare" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Compare</a>
+            <a href="/G304gent/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Dashboard</a>
             <a href="/G304gent/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
-            <button
-              onClick={async () => { await signOut(); window.location.href = "/G304gent/"; }}
-              className="flex items-center"
-            >
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="" className="h-7 w-7 rounded-full border border-white/10" referrerPolicy="no-referrer" />
-              ) : (
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-violet-500 text-xs font-bold text-white">
-                  {(user.displayName || user.email || "U")[0].toUpperCase()}
-                </div>
-              )}
-            </button>
           </div>
         </div>
       </nav>

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useI18n } from "@/i18n/context";
-import { useAuth } from "@/lib/auth-context";
 
 function HexIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -14,7 +13,6 @@ function HexIcon({ className = "w-5 h-5" }: { className?: string }) {
 
 function Navbar() {
   const { t } = useI18n();
-  const { user, loading } = useAuth();
   return (
     <nav className="fixed top-0 z-50 w-full border-b border-white/5 bg-gray-950/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 items-center justify-between px-6 sm:px-10 lg:px-16 xl:px-24">
@@ -35,30 +33,18 @@ function Navbar() {
           <a href="#contact" className="text-sm text-gray-400 hover:text-cyan-400 transition-colors">
             {t.nav.contact}
           </a>
-          {!loading && user ? (
-            <a
-              href="/G304gent/dashboard"
-              className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
-            >
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="" className="h-5 w-5 rounded-full" referrerPolicy="no-referrer" />
-              ) : null}
-              Dashboard
-            </a>
-          ) : (
-            <a
-              href="/G304gent/login"
-              className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
-            >
-              Sign In
-            </a>
-          )}
+          <a
+            href="/G304gent/brands"
+            className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
+          >
+            Launch App
+          </a>
         </div>
         <a
-          href={!loading && user ? "/G304gent/dashboard" : "/G304gent/login"}
+          href="/G304gent/brands"
           className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white md:hidden"
         >
-          {!loading && user ? "Dashboard" : "Sign In"}
+          Launch App
         </a>
       </div>
     </nav>
@@ -67,7 +53,6 @@ function Navbar() {
 
 function Hero() {
   const { t } = useI18n();
-  const { user } = useAuth();
   return (
     <section className="relative overflow-hidden bg-gray-950 pt-28 pb-20 lg:pt-36 lg:pb-28">
       <div className="absolute inset-0 bg-grid animate-grid-fade" />
@@ -91,10 +76,10 @@ function Hero() {
             </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <a
-                href={user ? "/G304gent/brands" : "/G304gent/login"}
+                href="/G304gent/brands"
                 className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-105 transition-all"
               >
-                {user ? t.hero.ctaLoggedIn : t.hero.cta}
+                {t.hero.cta}
               </a>
               <a
                 href="#solution"
@@ -340,7 +325,6 @@ function Features() {
 
 function Pricing() {
   const { t } = useI18n();
-  const { user } = useAuth();
   const plans = [
     { ...t.pricing.audit, popular: false },
     { ...t.pricing.foundations, popular: false },
@@ -393,7 +377,7 @@ function Pricing() {
                 ))}
               </ul>
               <a
-                href={user ? "/G304gent/brands" : "/G304gent/login"}
+                href="/G304gent/brands"
                 className={`mt-8 block rounded-lg py-3 text-center text-sm font-semibold transition-all duration-300 hover:scale-105 ${
                   plan.popular
                     ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:from-cyan-400 hover:to-violet-400"
@@ -451,20 +435,19 @@ function Industries() {
 
 function CTA() {
   const { t } = useI18n();
-  const { user } = useAuth();
   return (
     <section id="contact" className="relative overflow-hidden border-t border-white/5 bg-gray-950 py-24">
       <div className="absolute inset-0 bg-grid" />
       <div className="absolute top-0 left-1/3 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-[200px]" />
       <div className="absolute bottom-0 right-1/3 w-[600px] h-[600px] bg-violet-500/10 rounded-full blur-[200px]" />
       <div className="relative mx-auto max-w-4xl px-6 text-center">
-        <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">{user ? t.cta.titleLoggedIn : t.cta.title}</h2>
-        <p className="mt-4 text-lg text-gray-400 leading-relaxed">{user ? t.cta.subtitleLoggedIn : t.cta.subtitle}</p>
+        <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">{t.cta.title}</h2>
+        <p className="mt-4 text-lg text-gray-400 leading-relaxed">{t.cta.subtitle}</p>
         <a
-          href={user ? "/G304gent/brands" : "/G304gent/login"}
+          href="/G304gent/brands"
           className="mt-10 inline-block rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:from-cyan-400 hover:to-violet-400 transition-all"
         >
-          {user ? t.cta.buttonLoggedIn : t.cta.button}
+          {t.cta.button}
         </a>
       </div>
     </section>
