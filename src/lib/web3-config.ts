@@ -1,16 +1,24 @@
 // Web3 / payments configuration.
-// All values are public, client-side identifiers and are injected at build
-// time via NEXT_PUBLIC_* env vars (set as GitHub Actions repository variables).
+// All values are public, client-side identifiers. They can be overridden at
+// build time via NEXT_PUBLIC_* env vars; otherwise the defaults below are used.
 
-export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
+// Default Privy App ID (public). Override with NEXT_PUBLIC_PRIVY_APP_ID if set.
+const DEFAULT_PRIVY_APP_ID = "cmquwmdev00h40cle8tosg0uy";
+
+// Default Solana wallet that receives SOL / USDC / USDT payments (public).
+// Set this once you have the receiving address, or override via env var.
+const DEFAULT_RECIPIENT_WALLET = "";
+
+export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || DEFAULT_PRIVY_APP_ID;
 
 export const SOLANA_NETWORK = "mainnet-beta" as const;
 
 export const SOLANA_RPC_URL =
-  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 
 // The wallet that receives SOL / USDC / USDT payments.
-export const RECIPIENT_WALLET = process.env.NEXT_PUBLIC_RECIPIENT_WALLET ?? "";
+export const RECIPIENT_WALLET =
+  process.env.NEXT_PUBLIC_RECIPIENT_WALLET || DEFAULT_RECIPIENT_WALLET;
 
 export type PaymentAsset = {
   symbol: "SOL" | "USDC" | "USDT";
