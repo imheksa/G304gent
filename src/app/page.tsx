@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useI18n } from "@/i18n/context";
 import AccountButton from "@/components/AccountButton";
 import CheckoutModal from "@/components/CheckoutModal";
+import PrimaryCTA from "@/components/PrimaryCTA";
 import { PAYMENTS_ENABLED } from "@/lib/web3-config";
 
 function HexIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -37,19 +38,19 @@ function Navbar() {
             {t.nav.contact}
           </a>
           <AccountButton />
-          <a
+          <PrimaryCTA
             href="/G304gent/brands"
             className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
           >
             Launch App
-          </a>
+          </PrimaryCTA>
         </div>
-        <a
+        <PrimaryCTA
           href="/G304gent/brands"
           className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white md:hidden"
         >
           Launch App
-        </a>
+        </PrimaryCTA>
       </div>
     </nav>
   );
@@ -79,12 +80,12 @@ function Hero() {
               {t.hero.subtitle}
             </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-              <a
+              <PrimaryCTA
                 href="/G304gent/brands"
                 className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-105 transition-all"
               >
                 {t.hero.cta}
-              </a>
+              </PrimaryCTA>
               <a
                 href="#solution"
                 className="rounded-lg border border-white/10 bg-white/5 px-8 py-4 text-base font-semibold text-gray-300 hover:bg-white/10 hover:text-white transition-all"
@@ -400,9 +401,9 @@ function Pricing() {
                   );
                 }
                 return (
-                  <a href="/G304gent/brands" className={ctaClass}>
+                  <PrimaryCTA href="/G304gent/brands" className={ctaClass}>
                     {plan.cta}
-                  </a>
+                  </PrimaryCTA>
                 );
               })()}
             </div>
@@ -469,12 +470,12 @@ function CTA() {
       <div className="relative mx-auto max-w-4xl px-6 text-center">
         <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">{t.cta.title}</h2>
         <p className="mt-4 text-lg text-gray-400 leading-relaxed">{t.cta.subtitle}</p>
-        <a
+        <PrimaryCTA
           href="/G304gent/brands"
           className="mt-10 inline-block rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:from-cyan-400 hover:to-violet-400 transition-all"
         >
           {t.cta.button}
-        </a>
+        </PrimaryCTA>
       </div>
     </section>
   );

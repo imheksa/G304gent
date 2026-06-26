@@ -4,18 +4,24 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { generateData, getSavedBrands, type BrandData } from "@/lib/brand-data";
-import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
+import { useAccess, goToPricing, type AccessLevel } from "@/lib/use-access";
 
 type Tab = "overview" | "engines" | "alerts" | "facts";
 
+// Minimum access level required to view each tab.
+const TAB_ACCESS: Record<Tab, AccessLevel> = {
+  overview: "guest",
+  engines: "free",
+  alerts: "subscribed",
+  facts: "subscribed",
+};
+
 export default function Dashboard() {
   return (
-    <AuthGate>
-      <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
-        <DashboardInner />
-      </Suspense>
-    </AuthGate>
+    <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+      <DashboardInner />
+    </Suspense>
   );
 }
 
@@ -24,6 +30,7 @@ function DashboardInner() {
   const brandParam = searchParams.get("brand");
   const [brand, setBrand] = useState(brandParam || "");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const { level, canAccess, login } = useAccess();
 
   useEffect(() => {
     if (!brandParam) {
@@ -37,6 +44,16 @@ function DashboardInner() {
   if (!data) return null;
 
   const tabs: Tab[] = ["overview", "engines", "alerts", "facts"];
+
+  function handleTab(tab: Tab) {
+    if (canAccess(TAB_ACCESS[tab])) {
+      setActiveTab(tab);
+    } else if (level === "guest") {
+      login();
+    } else {
+      goToPricing();
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -52,40 +69,86 @@ function DashboardInner() {
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Live Monitoring
             </span>
-            <button className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all">
-              Export Report
-            </button>
+            {level === "subscribed" && (
+              <button className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all">
+                Export Report
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="mt-6 flex gap-1 rounded-lg border border-white/5 bg-gray-900/50 p-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-md px-4 py-2 text-sm font-medium capitalize transition-all ${
-                activeTab === tab
-                  ? "bg-white/10 text-white"
-                  : "text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              {tab === "facts" ? "Canonical Facts" : tab}
-              {tab === "alerts" && (
-                <span className="ml-2 rounded-full bg-red-500/20 px-2 py-0.5 text-xs text-red-400">
-                  {data.alerts.filter((a) => a.severity === "high").length}
-                </span>
-              )}
-            </button>
-          ))}
+        {level !== "subscribed" && <AccessBanner level={level} onLogin={login} />}
+
+        <div className="mt-6 flex gap-1 rounded-lg border border-white/5 bg-gray-900/50 p-1 overflow-x-auto">
+          {tabs.map((tab) => {
+            const locked = !canAccess(TAB_ACCESS[tab]);
+            return (
+              <button
+                key={tab}
+                onClick={() => handleTab(tab)}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium capitalize transition-all ${
+                  activeTab === tab && !locked
+                    ? "bg-white/10 text-white"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                {locked && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0110 0v4" />
+                  </svg>
+                )}
+                {tab === "facts" ? "Canonical Facts" : tab}
+                {tab === "alerts" && !locked && (
+                  <span className="ml-1 rounded-full bg-red-500/20 px-2 py-0.5 text-xs text-red-400">
+                    {data.alerts.filter((a) => a.severity === "high").length}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div className="mt-8">
-          {activeTab === "overview" && <OverviewTab data={data} />}
-          {activeTab === "engines" && <EnginesTab data={data} />}
-          {activeTab === "alerts" && <AlertsTab data={data} />}
-          {activeTab === "facts" && <FactsTab data={data} />}
+          {activeTab === "overview" && <OverviewTab data={data} level={level} onLogin={login} />}
+          {activeTab === "engines" && canAccess("free") && <EnginesTab data={data} />}
+          {activeTab === "alerts" && canAccess("subscribed") && <AlertsTab data={data} />}
+          {activeTab === "facts" && canAccess("subscribed") && <FactsTab data={data} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AccessBanner({ level, onLogin }: { level: AccessLevel; onLogin: () => void }) {
+  if (level === "guest") {
+    return (
+      <div className="mt-6 flex flex-col gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-cyan-300">You&apos;re viewing a free preview</p>
+          <p className="mt-0.5 text-xs text-gray-400">Log in to unlock engine details, misinformation alerts, and canonical facts.</p>
+        </div>
+        <button
+          onClick={onLogin}
+          className="shrink-0 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
+        >
+          Continue with Google
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-6 flex flex-col gap-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-medium text-violet-300">Unlock the full report</p>
+        <p className="mt-0.5 text-xs text-gray-400">Subscribe to access misinformation alerts, canonical facts, and report exports.</p>
+      </div>
+      <button
+        onClick={goToPricing}
+        className="shrink-0 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
+      >
+        View Plans
+      </button>
     </div>
   );
 }
@@ -115,8 +178,10 @@ function DashboardNav() {
 
 type DashData = BrandData;
 
-function OverviewTab({ data }: { data: DashData }) {
+function OverviewTab({ data, level, onLogin }: { data: DashData; level: AccessLevel; onLogin: () => void }) {
   const { summaryCards, engines, soaTrend, alerts, topQueries } = data;
+  const isGuest = level === "guest";
+
   return (
     <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -137,13 +202,22 @@ function OverviewTab({ data }: { data: DashData }) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 rounded-xl border border-white/5 bg-gray-900/50 p-6">
-          <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Share of Answer Trend</h3>
-          <p className="mt-1 text-xs text-gray-400">You vs top competitor — last 6 weeks</p>
-          <div className="mt-6">
-            <SoAChart soaTrend={soaTrend} />
+        {isGuest ? (
+          <LockedCard
+            className="lg:col-span-2"
+            title="Share of Answer Trend"
+            message="Log in to see how your share of answer trends against competitors over time."
+            onLogin={onLogin}
+          />
+        ) : (
+          <div className="lg:col-span-2 rounded-xl border border-white/5 bg-gray-900/50 p-6">
+            <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Share of Answer Trend</h3>
+            <p className="mt-1 text-xs text-gray-400">You vs top competitor — last 6 weeks</p>
+            <div className="mt-6">
+              <SoAChart soaTrend={soaTrend} />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
           <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">AI Engine Status</h3>
@@ -167,7 +241,14 @@ function OverviewTab({ data }: { data: DashData }) {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {isGuest ? (
+        <LockedCard
+          title="Recent Alerts & Monitored Queries"
+          message="Log in to unlock misinformation alerts and your top monitored AI queries."
+          onLogin={onLogin}
+        />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Recent Alerts</h3>
@@ -205,6 +286,28 @@ function OverviewTab({ data }: { data: DashData }) {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function LockedCard({ title, message, onLogin, className = "" }: { title: string; message: string; onLogin: () => void; className?: string }) {
+  return (
+    <div className={`relative flex flex-col items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-gray-900/50 p-8 text-center ${className}`}>
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0110 0v4" />
+        </svg>
+      </div>
+      <h3 className="mt-4 text-sm font-semibold text-white">{title}</h3>
+      <p className="mt-1 max-w-sm text-xs text-gray-400">{message}</p>
+      <button
+        onClick={onLogin}
+        className="mt-5 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
+      >
+        Continue with Google
+      </button>
     </div>
   );
 }
