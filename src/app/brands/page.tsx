@@ -15,8 +15,18 @@ import {
   type BrandProfile,
   type SubscriptionTier,
 } from "@/lib/brand-data";
+import AuthGate from "@/components/AuthGate";
+import AccountButton from "@/components/AccountButton";
 
 export default function BrandsPage() {
+  return (
+    <AuthGate>
+      <BrandsPageInner />
+    </AuthGate>
+  );
+}
+
+function BrandsPageInner() {
   const [brands, setBrands] = useState<BrandProfile[]>([]);
   const [competitors, setCompetitors] = useState<BrandProfile[]>([]);
   const [tier, setTier] = useState<SubscriptionTier>("free");
@@ -83,6 +93,7 @@ export default function BrandsPage() {
             <a href="/G304gent/compare" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Compare</a>
             <a href="/G304gent/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Dashboard</a>
             <a href="/G304gent/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
+            <AccountButton />
           </div>
         </div>
       </nav>

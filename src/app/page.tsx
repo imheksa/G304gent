@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useI18n } from "@/i18n/context";
+import AccountButton from "@/components/AccountButton";
+import CheckoutModal from "@/components/CheckoutModal";
+import { PAYMENTS_ENABLED } from "@/lib/web3-config";
 
 function HexIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -33,6 +36,7 @@ function Navbar() {
           <a href="#contact" className="text-sm text-gray-400 hover:text-cyan-400 transition-colors">
             {t.nav.contact}
           </a>
+          <AccountButton />
           <a
             href="/G304gent/brands"
             className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
@@ -325,6 +329,7 @@ function Features() {
 
 function Pricing() {
   const { t } = useI18n();
+  const [checkout, setCheckout] = useState<{ plan: string; amountUsd: number } | null>(null);
   const plans = [
     { ...t.pricing.audit, popular: false },
     { ...t.pricing.foundations, popular: false },
@@ -376,20 +381,41 @@ function Pricing() {
                   </li>
                 ))}
               </ul>
-              <a
-                href="/G304gent/brands"
-                className={`mt-8 block rounded-lg py-3 text-center text-sm font-semibold transition-all duration-300 hover:scale-105 ${
+              {(() => {
+                const m = /^\$(\d+)/.exec(plan.price);
+                const priceUsd = m ? parseInt(m[1], 10) : 0;
+                const ctaClass = `mt-8 block w-full rounded-lg py-3 text-center text-sm font-semibold transition-all duration-300 hover:scale-105 ${
                   plan.popular
                     ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:from-cyan-400 hover:to-violet-400"
                     : "border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white hover:border-white/20"
-                }`}
-              >
-                {plan.cta}
-              </a>
+                }`;
+                if (PAYMENTS_ENABLED && priceUsd > 0) {
+                  return (
+                    <button
+                      onClick={() => setCheckout({ plan: plan.name, amountUsd: priceUsd })}
+                      className={ctaClass}
+                    >
+                      {plan.cta}
+                    </button>
+                  );
+                }
+                return (
+                  <a href="/G304gent/brands" className={ctaClass}>
+                    {plan.cta}
+                  </a>
+                );
+              })()}
             </div>
           ))}
         </div>
       </div>
+      {checkout && (
+        <CheckoutModal
+          plan={checkout.plan}
+          amountUsd={checkout.amountUsd}
+          onClose={() => setCheckout(null)}
+        />
+      )}
     </section>
   );
 }

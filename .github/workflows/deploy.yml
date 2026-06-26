@@ -24,6 +24,12 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run build
+        env:
+          # Public, client-side identifiers. Set these as repository Variables
+          # (Settings → Secrets and variables → Actions → Variables).
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ vars.NEXT_PUBLIC_PRIVY_APP_ID }}
+          NEXT_PUBLIC_RECIPIENT_WALLET: ${{ vars.NEXT_PUBLIC_RECIPIENT_WALLET }}
+          NEXT_PUBLIC_SOLANA_RPC_URL: ${{ vars.NEXT_PUBLIC_SOLANA_RPC_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: out

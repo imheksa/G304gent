@@ -4,14 +4,18 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { generateData, getSavedBrands, type BrandData } from "@/lib/brand-data";
+import AuthGate from "@/components/AuthGate";
+import AccountButton from "@/components/AccountButton";
 
 type Tab = "overview" | "engines" | "alerts" | "facts";
 
 export default function Dashboard() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
-      <DashboardInner />
-    </Suspense>
+    <AuthGate>
+      <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+        <DashboardInner />
+      </Suspense>
+    </AuthGate>
   );
 }
 
@@ -102,6 +106,7 @@ function DashboardNav() {
           <a href="/G304gent/brands" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">My Brands</a>
           <a href="/G304gent/compare" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Compare</a>
           <a href="/G304gent/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
+          <AccountButton />
         </div>
       </div>
     </nav>

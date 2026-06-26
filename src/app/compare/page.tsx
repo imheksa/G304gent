@@ -4,12 +4,16 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { generateData, getSavedBrands, getCompetitorNames } from "@/lib/brand-data";
+import AuthGate from "@/components/AuthGate";
+import AccountButton from "@/components/AccountButton";
 
 export default function ComparePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
-      <CompareInner />
-    </Suspense>
+    <AuthGate>
+      <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+        <CompareInner />
+      </Suspense>
+    </AuthGate>
   );
 }
 
@@ -49,6 +53,7 @@ function CompareInner() {
             <a href="/G304gent/compare" className="text-sm text-cyan-400 font-medium">Compare</a>
             <a href="/G304gent/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Dashboard</a>
             <a href="/G304gent/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
+            <AccountButton />
           </div>
         </div>
       </nav>
