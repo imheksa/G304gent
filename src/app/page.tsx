@@ -38,19 +38,19 @@ function Navbar() {
             {t.nav.contact}
           </a>
           <AccountButton />
-          <PrimaryCTA
-            href="/G304gent/brands"
+          <a
+            href="/G304gent/dashboard"
             className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
           >
-            Launch App
-          </PrimaryCTA>
+            Live Dashboard
+          </a>
         </div>
-        <PrimaryCTA
-          href="/G304gent/brands"
+        <a
+          href="/G304gent/dashboard"
           className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white md:hidden"
         >
-          Launch App
-        </PrimaryCTA>
+          Live Dashboard
+        </a>
       </div>
     </nav>
   );
@@ -81,7 +81,7 @@ function Hero() {
             </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <PrimaryCTA
-                href="/G304gent/brands"
+                href="/G304gent/dashboard"
                 className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-105 transition-all"
               >
                 {t.hero.cta}
@@ -471,7 +471,7 @@ function CTA() {
         <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">{t.cta.title}</h2>
         <p className="mt-4 text-lg text-gray-400 leading-relaxed">{t.cta.subtitle}</p>
         <PrimaryCTA
-          href="/G304gent/brands"
+          href="/G304gent/dashboard"
           className="mt-10 inline-block rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:from-cyan-400 hover:to-violet-400 transition-all"
         >
           {t.cta.button}

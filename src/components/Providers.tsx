@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import { I18nProvider } from "@/i18n/context";
+import LoginRedirect from "@/components/LoginRedirect";
 import { PRIVY_APP_ID, PRIVY_ENABLED } from "@/lib/web3-config";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
@@ -26,6 +27,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         },
       }}
     >
+      <LoginRedirect />
       <I18nProvider>{children}</I18nProvider>
     </PrivyProvider>
   );
