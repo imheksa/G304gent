@@ -16,7 +16,7 @@ export default function AccountButton() {
 }
 
 function Inner() {
-  const { ready, authenticated, login, logout } = usePrivy();
+  const { ready, authenticated, logout } = usePrivy();
   const { wallets } = useWallets();
   const [open, setOpen] = useState(false);
 
@@ -24,16 +24,9 @@ function Inner() {
     return <div className="h-8 w-20 animate-pulse rounded-lg bg-white/5" />;
   }
 
-  if (!authenticated) {
-    return (
-      <button
-        onClick={() => login()}
-        className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
-      >
-        Log In
-      </button>
-    );
-  }
+  // Signed-out users log in via the primary "Live Dashboard" / Signup CTAs,
+  // so the navbar doesn't need a separate Log In button.
+  if (!authenticated) return null;
 
   const address = wallets[0]?.address;
 
