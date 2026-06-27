@@ -6,8 +6,8 @@
 const DEFAULT_PRIVY_APP_ID = "cmquwmdev00h40cle8tosg0uy";
 
 // Default Solana wallet that receives SOL / USDC / USDT payments (public).
-// Set this once you have the receiving address, or override via env var.
-const DEFAULT_RECIPIENT_WALLET = "";
+// Override via NEXT_PUBLIC_RECIPIENT_WALLET if set.
+const DEFAULT_RECIPIENT_WALLET = "3hrPAo6BuYsfvY7BXwNK5y4z1VggnCr985x7eKN7VW6a";
 
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || DEFAULT_PRIVY_APP_ID;
 
