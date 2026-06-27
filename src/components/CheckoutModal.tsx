@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets, useSignAndSendTransaction, useFundWallet } from "@privy-io/react-auth/solana";
@@ -14,6 +14,7 @@ import {
   buildPaymentTransaction,
   fetchSolUsdPrice,
   getConnection,
+  getAssetBalance,
   base58Encode,
   explorerTxUrl,
 } from "@/lib/pay";
@@ -46,8 +47,29 @@ function Inner({ plan, amountUsd, onClose }: Props) {
   const [solPrice, setSolPrice] = useState<number | null>(null);
   const [priceError, setPriceError] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [balance, setBalance] = useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
 
   const wallet = wallets[0];
+
+  // Check the connected wallet's balance for the selected asset.
+  const checkBalance = useCallback(async () => {
+    if (!wallet) return;
+    setBalanceLoading(true);
+    try {
+      const bal = await getAssetBalance(getConnection(), new PublicKey(wallet.address), asset);
+      setBalance(bal);
+    } catch {
+      setBalance(null);
+    } finally {
+      setBalanceLoading(false);
+    }
+  }, [wallet, asset]);
+
+  useEffect(() => {
+    setBalance(null);
+    if (wallet && authenticated) checkBalance();
+  }, [wallet, authenticated, checkBalance]);
 
   // Fetch the SOL price when SOL is selected (needed to convert USD -> SOL).
   useEffect(() => {
@@ -100,6 +122,8 @@ function Inner({ plan, amountUsd, onClose }: Props) {
     } catch (e) {
       const message = e instanceof Error ? e.message : "Payment failed";
       setStatus({ kind: "error", message });
+      // Refresh balance so the user can verify they have enough funds.
+      checkBalance();
     }
   }
 
@@ -182,10 +206,38 @@ function Inner({ plan, amountUsd, onClose }: Props) {
                   {RECIPIENT_WALLET.slice(0, 6)}…{RECIPIENT_WALLET.slice(-6)}
                 </span>
               </div>
+              <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-2">
+                <span className="text-xs text-gray-500">Your balance</span>
+                {balanceLoading ? (
+                  <span className="text-xs text-gray-500">checking…</span>
+                ) : balance === null ? (
+                  <button onClick={checkBalance} className="text-xs font-medium text-cyan-400 hover:underline">
+                    Check balance
+                  </button>
+                ) : (
+                  <span className={`font-mono text-xs ${amount !== null && balance < amount ? "text-red-400" : "text-gray-300"}`}>
+                    {`${balance.toFixed(asset.symbol === "SOL" ? 4 : 2)} ${asset.symbol}`}
+                  </span>
+                )}
+              </div>
             </div>
 
+            {amount !== null && balance !== null && balance < amount && (
+              <p className="mt-3 text-xs text-amber-400">
+                Insufficient {asset.symbol} balance. Fund your wallet before paying.
+              </p>
+            )}
+
             {status.kind === "error" && (
-              <p className="mt-3 text-xs text-red-400 break-words">{status.message}</p>
+              <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                <p className="text-xs font-medium text-red-400">Payment failed</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  Check that your Privy wallet has enough <span className="font-mono">{asset.symbol}</span>
+                  {asset.symbol !== "SOL" ? " and some SOL for network fees" : " for the amount plus network fees"}.
+                  Use “Check balance” or “Fund wallet” below.
+                </p>
+                <p className="mt-1 break-words text-[10px] font-mono text-gray-600">{status.message}</p>
+              </div>
             )}
 
             <button
