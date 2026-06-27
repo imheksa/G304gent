@@ -16,6 +16,32 @@ export function getConnection(): Connection {
   return new Connection(SOLANA_RPC_URL, "confirmed");
 }
 
+// Native SOL balance (in SOL) for a wallet.
+export async function getSolBalance(connection: Connection, owner: PublicKey): Promise<number> {
+  const lamports = await connection.getBalance(owner);
+  return lamports / LAMPORTS_PER_SOL;
+}
+
+// Balance of the asset the user is paying with (SOL or an SPL token).
+export async function getAssetBalance(
+  connection: Connection,
+  owner: PublicKey,
+  asset: PaymentAsset
+): Promise<number> {
+  if (asset.kind === "native") {
+    return getSolBalance(connection, owner);
+  }
+  const mint = new PublicKey(asset.mint as string);
+  const ata = await getAssociatedTokenAddress(mint, owner);
+  try {
+    const res = await connection.getTokenAccountBalance(ata);
+    return res.value.uiAmount ?? 0;
+  } catch {
+    // No token account yet → zero balance.
+    return 0;
+  }
+}
+
 // Live SOL/USD price so a USD-denominated plan can be paid in SOL.
 export async function fetchSolUsdPrice(): Promise<number> {
   const res = await fetch(

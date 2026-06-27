@@ -13,8 +13,11 @@ export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || DEFAULT_PRIV
 
 export const SOLANA_NETWORK = "mainnet-beta" as const;
 
+// Public, browser-accessible (CORS-enabled) mainnet RPC. The official
+// api.mainnet-beta.solana.com endpoint returns 403 for browser requests, so we
+// default to a permissive public node. Override with NEXT_PUBLIC_SOLANA_RPC_URL.
 export const SOLANA_RPC_URL =
-  process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://solana-rpc.publicnode.com";
 
 // The wallet that receives SOL / USDC / USDT payments.
 export const RECIPIENT_WALLET =
