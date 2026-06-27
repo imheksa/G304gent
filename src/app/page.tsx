@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { useI18n } from "@/i18n/context";
 import AccountButton from "@/components/AccountButton";
 import CheckoutModal from "@/components/CheckoutModal";
 import PrimaryCTA from "@/components/PrimaryCTA";
 import { PAYMENTS_ENABLED } from "@/lib/web3-config";
+import { getSavedBrands } from "@/lib/brand-data";
 
 function HexIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -780,6 +782,27 @@ function ScanStep({ label, done }: { label: string; done: boolean }) {
 }
 
 export default function Home() {
+  const { ready, authenticated } = usePrivy();
+  const [redirecting, setRedirecting] = useState(false);
+
+  // Signed-in users shouldn't see the marketing page — send them into the app.
+  // Skip when there's a hash (e.g. #pricing) so the upgrade flow still works.
+  useEffect(() => {
+    if (!ready || !authenticated) return;
+    if (typeof window !== "undefined" && window.location.hash) return;
+    setRedirecting(true);
+    const brands = getSavedBrands();
+    window.location.href = brands.length > 0 ? "/G304gent/dashboard" : "/G304gent/brands";
+  }, [ready, authenticated]);
+
+  if (redirecting) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-950">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <>
       <Navbar />

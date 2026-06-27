@@ -30,14 +30,23 @@ function DashboardInner() {
   const brandParam = searchParams.get("brand");
   const [brand, setBrand] = useState(brandParam || "");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const { level, canAccess, login } = useAccess();
+  const { ready, authenticated, level, canAccess, login } = useAccess();
 
   useEffect(() => {
-    if (!brandParam) {
+    if (brandParam || !ready) return;
+    if (authenticated) {
       const brands = getSavedBrands();
-      setBrand(brands[0] || "Uniswap");
+      if (brands.length > 0) {
+        setBrand(brands[0]);
+      } else {
+        // Logged in but no brand yet — send them to add one.
+        window.location.href = "/G304gent/brands";
+      }
+    } else {
+      // Guest preview.
+      setBrand("Uniswap");
     }
-  }, [brandParam]);
+  }, [brandParam, ready, authenticated]);
 
   const data = brand ? generateData(brand) : null;
 
