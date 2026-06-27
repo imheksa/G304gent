@@ -84,6 +84,8 @@ function Hero() {
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <PrimaryCTA
                 href="/G304gent/dashboard"
+                authedHref="/G304gent/#pricing"
+                authedChildren={t.hero.ctaLoggedIn}
                 className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-105 transition-all"
               >
                 {t.hero.cta}
@@ -332,6 +334,8 @@ function Features() {
 
 function Pricing() {
   const { t } = useI18n();
+  const { ready, authenticated } = usePrivy();
+  const isAuthed = ready && authenticated;
   const [checkout, setCheckout] = useState<{ plan: string; amountUsd: number } | null>(null);
   const plans = [
     { ...t.pricing.audit, popular: false },
@@ -392,18 +396,33 @@ function Pricing() {
                     ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:from-cyan-400 hover:to-violet-400"
                     : "border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white hover:border-white/20"
                 }`;
+                // Paid plans (Starter / Pro): open crypto checkout.
                 if (PAYMENTS_ENABLED && priceUsd > 0) {
                   return (
                     <button
                       onClick={() => setCheckout({ plan: plan.name, amountUsd: priceUsd })}
                       className={ctaClass}
                     >
-                      {plan.cta}
+                      {isAuthed ? `Upgrade to ${plan.name}` : plan.cta}
                     </button>
                   );
                 }
+                // Enterprise / custom: contact.
+                if (priceUsd === 0 && !plan.price.trim().startsWith("$")) {
+                  return (
+                    <a href="#contact" className={ctaClass}>
+                      {plan.cta}
+                    </a>
+                  );
+                }
+                // Free plan.
                 return (
-                  <PrimaryCTA href="/G304gent/brands" className={ctaClass}>
+                  <PrimaryCTA
+                    href="/G304gent/brands"
+                    authedHref="/G304gent/dashboard"
+                    authedChildren="Go to Dashboard"
+                    className={ctaClass}
+                  >
                     {plan.cta}
                   </PrimaryCTA>
                 );
@@ -464,16 +483,20 @@ function Industries() {
 
 function CTA() {
   const { t } = useI18n();
+  const { ready, authenticated } = usePrivy();
+  const isAuthed = ready && authenticated;
   return (
     <section id="contact" className="relative overflow-hidden border-t border-white/5 bg-gray-950 py-24">
       <div className="absolute inset-0 bg-grid" />
       <div className="absolute top-0 left-1/3 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-[200px]" />
       <div className="absolute bottom-0 right-1/3 w-[600px] h-[600px] bg-violet-500/10 rounded-full blur-[200px]" />
       <div className="relative mx-auto max-w-4xl px-6 text-center">
-        <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">{t.cta.title}</h2>
-        <p className="mt-4 text-lg text-gray-400 leading-relaxed">{t.cta.subtitle}</p>
+        <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">{isAuthed ? t.cta.titleLoggedIn : t.cta.title}</h2>
+        <p className="mt-4 text-lg text-gray-400 leading-relaxed">{isAuthed ? t.cta.subtitleLoggedIn : t.cta.subtitle}</p>
         <PrimaryCTA
           href="/G304gent/dashboard"
+          authedHref="/G304gent/#pricing"
+          authedChildren={t.cta.buttonLoggedIn}
           className="mt-10 inline-block rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:from-cyan-400 hover:to-violet-400 transition-all"
         >
           {t.cta.button}
