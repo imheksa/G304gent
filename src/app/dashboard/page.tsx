@@ -86,8 +86,6 @@ function DashboardInner() {
           </div>
         </div>
 
-        {level === "free" && <AccessBanner />}
-
         <div className="mt-6 flex gap-1 rounded-lg border border-white/5 bg-gray-900/50 p-1 overflow-x-auto">
           {tabs.map((tab) => {
             const locked = !canAccess(TAB_ACCESS[tab]);
@@ -129,23 +127,6 @@ function DashboardInner() {
   );
 }
 
-function AccessBanner() {
-  return (
-    <div className="mt-6 flex flex-col gap-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-sm font-medium text-violet-300">Unlock the full report</p>
-        <p className="mt-0.5 text-xs text-gray-400">Subscribe to access misinformation alerts, canonical facts, and report exports.</p>
-      </div>
-      <button
-        onClick={goToPricing}
-        className="shrink-0 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
-      >
-        View Plans
-      </button>
-    </div>
-  );
-}
-
 function DashboardNav() {
   return (
     <nav className="border-b border-white/5 bg-gray-950/80 backdrop-blur-xl">
@@ -173,43 +154,19 @@ type DashData = BrandData;
 
 function OverviewTab({ data, level, onLogin }: { data: DashData; level: AccessLevel; onLogin: () => void }) {
   const { summaryCards, engines, soaTrend, alerts, topQueries } = data;
-  const isGuest = level === "guest";
+  const full = level === "subscribed";
 
-  return (
+  // Everything below the summary cards is gated — only subscribers see it.
+  const lower = (
     <div className="space-y-8">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {summaryCards.map((card) => (
-          <div key={card.label} className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
-            <p className="text-xs font-mono uppercase tracking-widest text-gray-500">{card.label}</p>
-            <div className="mt-3 flex items-baseline gap-1">
-              <span className={`text-3xl font-bold ${card.color}`}>{card.value}</span>
-              <span className="text-sm text-gray-500">{card.unit}</span>
-            </div>
-            <div className="mt-2">
-              <span className={`text-xs font-mono ${card.change.startsWith("+") ? "text-emerald-400" : "text-red-400"}`}>
-                {card.change} vs last week
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-
       <div className="grid gap-6 lg:grid-cols-3">
-        {isGuest ? (
-          <LockedCard
-            className="lg:col-span-2"
-            title="Share of Answer Trend"
-            message="Log in to see how your share of answer trends against competitors over time."
-          />
-        ) : (
-          <div className="lg:col-span-2 rounded-xl border border-white/5 bg-gray-900/50 p-6">
-            <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Share of Answer Trend</h3>
-            <p className="mt-1 text-xs text-gray-400">You vs top competitor — last 6 weeks</p>
-            <div className="mt-6">
-              <SoAChart soaTrend={soaTrend} />
-            </div>
+        <div className="lg:col-span-2 rounded-xl border border-white/5 bg-gray-900/50 p-6">
+          <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Share of Answer Trend</h3>
+          <p className="mt-1 text-xs text-gray-400">You vs top competitor — last 6 weeks</p>
+          <div className="mt-6">
+            <SoAChart soaTrend={soaTrend} />
           </div>
-        )}
+        </div>
 
         <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
           <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">AI Engine Status</h3>
@@ -233,80 +190,107 @@ function OverviewTab({ data, level, onLogin }: { data: DashData; level: AccessLe
         </div>
       </div>
 
-      {isGuest ? (
-        <>
-          <LockedCard
-            title="Recent Alerts & Monitored Queries"
-            message="Log in to unlock misinformation alerts and your top monitored AI queries."
-          />
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-8 text-center">
-            <p className="text-base font-semibold text-white">Get the full AI visibility report</p>
-            <p className="max-w-md text-sm text-gray-400">
-              Log in to unlock engine details, misinformation alerts, and canonical facts for your protocol.
-            </p>
-            <button
-              onClick={onLogin}
-              className="mt-2 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
-            >
-              Continue with Google
-            </button>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Recent Alerts</h3>
+            <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-mono text-red-400">
+              {alerts.filter((a) => a.severity === "high").length} critical
+            </span>
           </div>
-        </>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Recent Alerts</h3>
-              <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-mono text-red-400">
-                {alerts.filter((a) => a.severity === "high").length} critical
-              </span>
-            </div>
-            <div className="mt-4 space-y-2">
-              {alerts.slice(0, 3).map((alert) => (
-                <div key={alert.id} className="flex items-start gap-3 rounded-lg border border-white/5 bg-gray-950/50 px-4 py-3">
-                  <SeverityDot severity={alert.severity} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-white truncate">{alert.issue}</p>
-                    <p className="mt-0.5 text-xs text-gray-500">
-                      {alert.engine} · &quot;{alert.query}&quot; · {alert.time}
-                    </p>
-                  </div>
+          <div className="mt-4 space-y-2">
+            {alerts.slice(0, 3).map((alert) => (
+              <div key={alert.id} className="flex items-start gap-3 rounded-lg border border-white/5 bg-gray-950/50 px-4 py-3">
+                <SeverityDot severity={alert.severity} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-white truncate">{alert.issue}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    {alert.engine} · &quot;{alert.query}&quot; · {alert.time}
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
-            <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Top Monitored Queries</h3>
-            <div className="mt-4 space-y-2">
-              {topQueries.slice(0, 3).map((q) => (
-                <div key={q.query} className="flex items-center justify-between rounded-lg border border-white/5 bg-gray-950/50 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-white truncate">&quot;{q.query}&quot;</p>
-                    <p className="mt-0.5 text-xs text-gray-500">{q.mentions} mentions · {q.accuracy}% accuracy</p>
-                  </div>
-                  <TrendArrow trend={q.trend} />
-                </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
+
+        <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
+          <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Top Monitored Queries</h3>
+          <div className="mt-4 space-y-2">
+            {topQueries.slice(0, 3).map((q) => (
+              <div key={q.query} className="flex items-center justify-between rounded-lg border border-white/5 bg-gray-950/50 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-white truncate">&quot;{q.query}&quot;</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{q.mentions} mentions · {q.accuracy}% accuracy</p>
+                </div>
+                <TrendArrow trend={q.trend} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-8">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {summaryCards.map((card) => (
+          <div key={card.label} className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
+            <p className="text-xs font-mono uppercase tracking-widest text-gray-500">{card.label}</p>
+            <div className="mt-3 flex items-baseline gap-1">
+              <span className={`text-3xl font-bold ${card.color}`}>{card.value}</span>
+              <span className="text-sm text-gray-500">{card.unit}</span>
+            </div>
+            <div className="mt-2">
+              <span className={`text-xs font-mono ${card.change.startsWith("+") ? "text-emerald-400" : "text-red-400"}`}>
+                {card.change} vs last week
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {full ? (
+        lower
+      ) : (
+        <LockedOverlay mode={level === "guest" ? "login" : "subscribe"} onAction={level === "guest" ? onLogin : goToPricing}>
+          {lower}
+        </LockedOverlay>
       )}
     </div>
   );
 }
 
-function LockedCard({ title, message, className = "" }: { title: string; message: string; className?: string }) {
+function LockedOverlay({ mode, onAction, children }: { mode: "login" | "subscribe"; onAction: () => void; children: React.ReactNode }) {
   return (
-    <div className={`relative flex flex-col items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-gray-900/50 p-8 text-center ${className}`}>
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 text-gray-500">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-          <path d="M7 11V7a5 5 0 0110 0v4" />
-        </svg>
+    <div className="relative">
+      <div className="pointer-events-none select-none blur-md" aria-hidden>
+        {children}
       </div>
-      <h3 className="mt-4 text-sm font-semibold text-white">{title}</h3>
-      <p className="mt-1 max-w-sm text-xs text-gray-400">{message}</p>
+      <div className="absolute inset-0 flex items-start justify-center pt-20">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-violet-500/20 bg-gray-950/85 px-8 py-7 text-center shadow-2xl backdrop-blur-sm">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+          </div>
+          <p className="text-base font-semibold text-white">
+            {mode === "login" ? "Log in to view your full report" : "Unlock the full report"}
+          </p>
+          <p className="max-w-sm text-sm text-gray-400">
+            {mode === "login"
+              ? "Engine trends, AI engine status, alerts, and monitored queries are available once you log in."
+              : "Subscribe to unlock engine trends, AI engine status, alerts, and monitored queries."}
+          </p>
+          <button
+            onClick={onAction}
+            className="mt-1 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-2.5 text-sm font-semibold text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
+          >
+            {mode === "login" ? "Continue with Google" : "View Plans"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
