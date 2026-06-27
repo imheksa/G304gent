@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { generateData, getSavedBrands, getCompetitorNames } from "@/lib/brand-data";
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
+import { useAccess, goToPricing } from "@/lib/use-access";
 
 export default function ComparePage() {
   return (
@@ -32,6 +33,9 @@ function CompareInner() {
     if (!brandA && mb.length > 0) setBrandA(mb[0]);
     if (!brandB && comp.length > 0) setBrandB(comp[0]);
   }, []);
+
+  const { canAccess } = useAccess();
+  const locked = !canAccess("subscribed");
 
   const dataA = brandA ? generateData(brandA) : null;
   const dataB = brandB ? generateData(brandB) : null;
@@ -98,6 +102,7 @@ function CompareInner() {
             {/* Winner Summary */}
             <WinnerSummary brandA={brandA} brandB={brandB} dataA={dataA} dataB={dataB} />
 
+            <LockedSection locked={locked}>
             {/* AI Engine Presence */}
             <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
               <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">AI Engine Presence</h3>
@@ -186,6 +191,7 @@ function CompareInner() {
                 <AlertSummary brand={brandB} alerts={dataB.alerts} color="orange" />
               </div>
             </div>
+            </LockedSection>
           </div>
         )}
 
@@ -212,6 +218,37 @@ function CompareInner() {
             </a>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function LockedSection({ locked, children }: { locked: boolean; children: React.ReactNode }) {
+  if (!locked) return <>{children}</>;
+  return (
+    <div className="relative">
+      <div className="pointer-events-none select-none space-y-8 blur-md" aria-hidden>
+        {children}
+      </div>
+      <div className="absolute inset-0 flex items-start justify-center pt-24">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-violet-500/20 bg-gray-950/80 px-8 py-7 text-center shadow-2xl backdrop-blur-sm">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+          </div>
+          <p className="text-base font-semibold text-white">Unlock the full comparison</p>
+          <p className="max-w-sm text-sm text-gray-400">
+            AI engine presence, share-of-answer trend, and alerts are available on a paid plan.
+          </p>
+          <button
+            onClick={goToPricing}
+            className="mt-1 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-2.5 text-sm font-semibold text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
+          >
+            View Plans
+          </button>
+        </div>
       </div>
     </div>
   );
