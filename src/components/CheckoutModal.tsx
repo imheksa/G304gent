@@ -49,6 +49,7 @@ function Inner({ plan, amountUsd, onClose }: Props) {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [balance, setBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const wallet = wallets[0];
 
@@ -249,11 +250,42 @@ function Inner({ plan, amountUsd, onClose }: Props) {
             </button>
 
             <button
-              onClick={() => wallet && fundWallet({ address: wallet.address })}
+              onClick={async () => {
+                if (!wallet) return;
+                try {
+                  await fundWallet({ address: wallet.address });
+                } catch {
+                  /* Privy surfaces its own funding UI / errors */
+                }
+              }}
               className="mt-2 w-full rounded-lg border border-white/10 px-4 py-2.5 text-xs font-medium text-gray-400 hover:bg-white/5 hover:text-white transition-all"
             >
               Need funds? Fund wallet
             </button>
+
+            {wallet && (
+              <div className="mt-3 rounded-lg border border-white/5 bg-gray-950/60 p-3">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-gray-500">Or deposit to your wallet</p>
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  <span className="truncate font-mono text-xs text-gray-300">{wallet.address}</span>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(wallet.address);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1500);
+                      } catch {
+                        /* clipboard unavailable */
+                      }
+                    }}
+                    className="shrink-0 rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-medium text-cyan-400 hover:bg-white/5 transition-all"
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[10px] text-gray-500">Send SOL (and USDC/USDT) on Solana to this address.</p>
+              </div>
+            )}
           </div>
         )}
       </div>
