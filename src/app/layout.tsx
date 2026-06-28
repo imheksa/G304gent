@@ -13,10 +13,27 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = "https://geoagents.xyz";
+const TITLE = "6304 Agent — Most Powerful GEO Agent for Web3";
+const DESCRIPTION =
+  "Monitor how AI engines represent your Web3 protocol. Catch misinformation about fees, audits, and tokenomics. Become the trusted answer. The most powerful Generative Engine Optimization (GEO) agent for CEXs, DEXs, RWA, Payment, Stablecoin, and GameFi.";
+
 export const metadata: Metadata = {
-  title: "6304 Agent — Most Powerful GEO Agent for Web3",
-  description:
-    "Monitor how AI engines represent your Web3 protocol. Catch misinformation about fees, audits, and tokenomics. Become the trusted answer. The most powerful Generative Engine Optimization (GEO) agent for CEXs, DEXs, RWA, Payment, Stablecoin, and GameFi.",
+  metadataBase: new URL(SITE_URL),
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: SITE_URL,
+    siteName: "6304 Agent",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
