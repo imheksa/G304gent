@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { generateData, getSavedBrands, type BrandData } from "@/lib/brand-data";
+import { generateData, type BrandData } from "@/lib/brand-data";
+import { fetchBrandNames } from "@/lib/store";
 import AccountButton from "@/components/AccountButton";
 import { useAccess, goToPricing, type AccessLevel } from "@/lib/use-access";
 
@@ -34,18 +35,24 @@ function DashboardInner() {
 
   useEffect(() => {
     if (brandParam || !ready) return;
-    if (authenticated) {
-      const brands = getSavedBrands();
-      if (brands.length > 0) {
-        setBrand(brands[0]);
-      } else {
-        // Logged in but no brand yet — send them to add one.
-        window.location.href = "/G304gent/brands";
-      }
-    } else {
+    if (!authenticated) {
       // Guest preview.
       setBrand("Uniswap");
+      return;
     }
+    let cancelled = false;
+    fetchBrandNames().then((names) => {
+      if (cancelled) return;
+      if (names.length > 0) {
+        setBrand(names[0]);
+      } else {
+        // Logged in but no brand yet — send them to add one.
+        window.location.href = "/brands";
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [brandParam, ready, authenticated]);
 
   const data = brand ? generateData(brand) : null;
@@ -131,7 +138,7 @@ function DashboardNav() {
   return (
     <nav className="border-b border-white/5 bg-gray-950/80 backdrop-blur-xl">
       <div className="mx-auto flex h-14 items-center justify-between px-6 sm:px-10 lg:px-16 xl:px-24">
-        <a href="/G304gent/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+        <a href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
           <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-cyan-400">
             <path d="M12 2L21.5 7.5V16.5L12 22L2.5 16.5V7.5L12 2Z" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M12 7.5v9M8.1 9.75L12 12l3.9-2.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -139,10 +146,10 @@ function DashboardNav() {
           <span className="text-white">&nbsp;Agent</span>
         </a>
         <div className="flex items-center gap-6">
-          <a href="/G304gent/dashboard" className="text-sm text-cyan-400 font-medium">Dashboard</a>
-          <a href="/G304gent/brands" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">My Brands</a>
-          <a href="/G304gent/compare" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Compare</a>
-          <a href="/G304gent/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
+          <a href="/dashboard" className="text-sm text-cyan-400 font-medium">Dashboard</a>
+          <a href="/brands" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">My Brands</a>
+          <a href="/compare" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Compare</a>
+          <a href="/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
           <AccountButton />
         </div>
       </div>

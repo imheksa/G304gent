@@ -7,7 +7,7 @@ import AccountButton from "@/components/AccountButton";
 import CheckoutModal from "@/components/CheckoutModal";
 import PrimaryCTA from "@/components/PrimaryCTA";
 import { PAYMENTS_ENABLED } from "@/lib/web3-config";
-import { getSavedBrands } from "@/lib/brand-data";
+import { fetchBrandNames } from "@/lib/store";
 
 function HexIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -41,14 +41,14 @@ function Navbar() {
           </a>
           <AccountButton />
           <a
-            href="/G304gent/dashboard"
+            href="/dashboard"
             className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
           >
             Live Dashboard
           </a>
         </div>
         <a
-          href="/G304gent/dashboard"
+          href="/dashboard"
           className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white md:hidden"
         >
           Live Dashboard
@@ -83,8 +83,8 @@ function Hero() {
             </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <PrimaryCTA
-                href="/G304gent/dashboard"
-                authedHref="/G304gent/#pricing"
+                href="/dashboard"
+                authedHref="/#pricing"
                 authedChildren={t.hero.ctaLoggedIn}
                 className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:scale-105 transition-all"
               >
@@ -418,8 +418,8 @@ function Pricing() {
                 // Free plan.
                 return (
                   <PrimaryCTA
-                    href="/G304gent/brands"
-                    authedHref="/G304gent/dashboard"
+                    href="/brands"
+                    authedHref="/dashboard"
                     authedChildren="Go to Dashboard"
                     className={ctaClass}
                   >
@@ -494,8 +494,8 @@ function CTA() {
         <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">{isAuthed ? t.cta.titleLoggedIn : t.cta.title}</h2>
         <p className="mt-4 text-lg text-gray-400 leading-relaxed">{isAuthed ? t.cta.subtitleLoggedIn : t.cta.subtitle}</p>
         <PrimaryCTA
-          href="/G304gent/dashboard"
-          authedHref="/G304gent/#pricing"
+          href="/dashboard"
+          authedHref="/#pricing"
           authedChildren={t.cta.buttonLoggedIn}
           className="mt-10 inline-block rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:from-cyan-400 hover:to-violet-400 transition-all"
         >
@@ -711,7 +711,7 @@ function QuickScan() {
         clearInterval(interval);
         setScanProgress(100);
         setTimeout(() => {
-          window.location.href = `/G304gent/dashboard?brand=${encodeURIComponent(brand.trim())}`;
+          window.location.href = `/dashboard?brand=${encodeURIComponent(brand.trim())}`;
         }, 400);
       } else {
         setScanProgress(Math.round(progress));
@@ -814,8 +814,9 @@ export default function Home() {
     if (!ready || !authenticated) return;
     if (typeof window !== "undefined" && window.location.hash) return;
     setRedirecting(true);
-    const brands = getSavedBrands();
-    window.location.href = brands.length > 0 ? "/G304gent/dashboard" : "/G304gent/brands";
+    fetchBrandNames().then((names) => {
+      window.location.href = names.length > 0 ? "/dashboard" : "/brands";
+    });
   }, [ready, authenticated]);
 
   if (redirecting) {

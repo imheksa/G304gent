@@ -38,7 +38,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
       <div className="relative w-full max-w-md px-6">
         <div className="rounded-2xl border border-white/5 bg-gray-900/50 p-10 backdrop-blur-xl">
           <div className="text-center">
-            <a href="/G304gent/" className="inline-flex items-center gap-2 text-2xl font-bold tracking-tight">
+            <a href="/" className="inline-flex items-center gap-2 text-2xl font-bold tracking-tight">
               <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7 text-cyan-400">
                 <path d="M12 2L21.5 7.5V16.5L12 22L2.5 16.5V7.5L12 2Z" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
                 <path d="M12 7.5v9M8.1 9.75L12 12l3.9-2.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

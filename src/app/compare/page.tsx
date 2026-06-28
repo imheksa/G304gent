@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { generateData, getSavedBrands, getCompetitorNames } from "@/lib/brand-data";
+import { generateData } from "@/lib/brand-data";
+import { fetchBrandNames, fetchCompetitorNames } from "@/lib/store";
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
 import { useAccess, goToPricing } from "@/lib/use-access";
@@ -26,12 +27,17 @@ function CompareInner() {
   const [competitors, setCompetitors] = useState<string[]>([]);
 
   useEffect(() => {
-    const mb = getSavedBrands();
-    const comp = getCompetitorNames();
-    setMyBrands(mb);
-    setCompetitors(comp);
-    if (!brandA && mb.length > 0) setBrandA(mb[0]);
-    if (!brandB && comp.length > 0) setBrandB(comp[0]);
+    let cancelled = false;
+    Promise.all([fetchBrandNames(), fetchCompetitorNames()]).then(([mb, comp]) => {
+      if (cancelled) return;
+      setMyBrands(mb);
+      setCompetitors(comp);
+      if (!brandA && mb.length > 0) setBrandA(mb[0]);
+      if (!brandB && comp.length > 0) setBrandB(comp[0]);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const { canAccess } = useAccess();
@@ -45,7 +51,7 @@ function CompareInner() {
     <div className="min-h-screen bg-gray-950">
       <nav className="border-b border-white/5 bg-gray-950/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 items-center justify-between px-6 sm:px-10 lg:px-16 xl:px-24">
-          <a href="/G304gent/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          <a href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
             <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-cyan-400">
               <path d="M12 2L21.5 7.5V16.5L12 22L2.5 16.5V7.5L12 2Z" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M12 7.5v9M8.1 9.75L12 12l3.9-2.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -53,10 +59,10 @@ function CompareInner() {
             <span className="text-white">&nbsp;Agent</span>
           </a>
           <div className="flex items-center gap-6">
-            <a href="/G304gent/brands" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">My Brands</a>
-            <a href="/G304gent/compare" className="text-sm text-cyan-400 font-medium">Compare</a>
-            <a href="/G304gent/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Dashboard</a>
-            <a href="/G304gent/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
+            <a href="/brands" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">My Brands</a>
+            <a href="/compare" className="text-sm text-cyan-400 font-medium">Compare</a>
+            <a href="/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Dashboard</a>
+            <a href="/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
             <AccountButton />
           </div>
         </div>
@@ -74,7 +80,7 @@ function CompareInner() {
             options={myBrands}
             color="cyan"
             emptyLabel="No brands added yet"
-            addLink="/G304gent/brands"
+            addLink="/brands"
             addLabel="Add a brand"
           />
           <BrandSelector
@@ -84,7 +90,7 @@ function CompareInner() {
             options={competitors}
             color="orange"
             emptyLabel="No competitors added yet"
-            addLink="/G304gent/brands"
+            addLink="/brands"
             addLabel="Add a competitor"
           />
         </div>
@@ -211,7 +217,7 @@ function CompareInner() {
             </h3>
             <p className="mt-2 text-sm text-gray-500">Go to My Brands to add your brand and competitors</p>
             <a
-              href="/G304gent/brands"
+              href="/brands"
               className="mt-6 inline-block rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
             >
               Go to My Brands
