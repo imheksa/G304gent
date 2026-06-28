@@ -21,7 +21,7 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ## Live
 
-https://imheksa.github.io/G304gent/
+https://geoagents.xyz/
 
 ## About
 
