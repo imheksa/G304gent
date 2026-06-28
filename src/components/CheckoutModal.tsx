@@ -18,7 +18,7 @@ import {
   base58Encode,
   explorerTxUrl,
 } from "@/lib/pay";
-import { setUserTier, TIER_LABELS, type SubscriptionTier } from "@/lib/brand-data";
+import { activateTierByPayment } from "@/lib/store";
 
 type Props = {
   plan: string;
@@ -114,12 +114,15 @@ function Inner({ plan, amountUsd, onClose }: Props) {
         transaction: new Uint8Array(serialized),
         wallet,
       });
-      // Activate the subscription tier that matches the purchased plan.
-      const tierEntry = (Object.entries(TIER_LABELS) as [SubscriptionTier, string][]).find(
-        ([, label]) => label === plan
-      );
-      if (tierEntry) setUserTier(tierEntry[0]);
-      setStatus({ kind: "success", signature: base58Encode(signature) });
+      const sig = base58Encode(signature);
+      // Record the payment and activate the matching subscription tier
+      // (verified server-side when the backend is configured).
+      try {
+        await activateTierByPayment(plan, asset.symbol, sig);
+      } catch {
+        /* tier will sync on next load */
+      }
+      setStatus({ kind: "success", signature: sig });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Payment failed";
       setStatus({ kind: "error", message });

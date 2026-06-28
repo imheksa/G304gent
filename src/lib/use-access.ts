@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { getUserTier } from "@/lib/brand-data";
+import { fetchTier } from "@/lib/store";
 
 // Access tiers:
 //  - guest:      not logged in — limited preview only
@@ -17,7 +17,17 @@ export function useAccess() {
   const [tier, setTier] = useState<string>("free");
 
   useEffect(() => {
-    setTier(getUserTier());
+    if (!authenticated) {
+      setTier("free");
+      return;
+    }
+    let cancelled = false;
+    fetchTier().then((t) => {
+      if (!cancelled) setTier(t);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [authenticated]);
 
   const level: AccessLevel = !authenticated
@@ -34,5 +44,5 @@ export function useAccess() {
 }
 
 export function goToPricing() {
-  window.location.href = "/G304gent/#pricing";
+  window.location.href = "/#pricing";
 }

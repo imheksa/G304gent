@@ -3,18 +3,18 @@
 import { useState, useEffect } from "react";
 import {
   generateData,
-  getBrandProfiles,
-  saveBrandProfile,
-  removeBrand,
-  getCompetitorProfiles,
-  saveCompetitorProfile,
-  removeCompetitor,
-  getUserTier,
   TIER_LIMITS,
   TIER_LABELS,
   type BrandProfile,
   type SubscriptionTier,
 } from "@/lib/brand-data";
+import {
+  fetchBrands,
+  fetchCompetitors,
+  saveBrand,
+  deleteBrand,
+  fetchTier,
+} from "@/lib/store";
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
 
@@ -41,35 +41,36 @@ function BrandsPageInner() {
     refresh();
   }, []);
 
-  function refresh() {
-    setBrands(getBrandProfiles());
-    setCompetitors(getCompetitorProfiles());
-    setTier(getUserTier());
+  async function refresh() {
+    const [b, c, t] = await Promise.all([fetchBrands(), fetchCompetitors(), fetchTier()]);
+    setBrands(b);
+    setCompetitors(c);
+    setTier(t);
   }
 
-  function handleSave(profile: BrandProfile) {
-    saveBrandProfile(profile);
-    refresh();
+  async function handleSave(profile: BrandProfile) {
+    await saveBrand(profile, false);
+    await refresh();
     setShowForm(false);
     setEditBrand(null);
   }
 
-  function handleRemove(name: string) {
-    removeBrand(name);
-    refresh();
+  async function handleRemove(name: string) {
+    await deleteBrand(name, false);
+    await refresh();
     setDeleteConfirm(null);
   }
 
-  function handleCompSave(profile: BrandProfile) {
-    saveCompetitorProfile(profile);
-    refresh();
+  async function handleCompSave(profile: BrandProfile) {
+    await saveBrand(profile, true);
+    await refresh();
     setShowCompForm(false);
     setEditComp(null);
   }
 
-  function handleCompRemove(name: string) {
-    removeCompetitor(name);
-    refresh();
+  async function handleCompRemove(name: string) {
+    await deleteBrand(name, true);
+    await refresh();
     setDeleteConfirm(null);
   }
 
@@ -81,7 +82,7 @@ function BrandsPageInner() {
     <div className="min-h-screen bg-gray-950">
       <nav className="border-b border-white/5 bg-gray-950/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 items-center justify-between px-6 sm:px-10 lg:px-16 xl:px-24">
-          <a href="/G304gent/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          <a href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
             <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-cyan-400">
               <path d="M12 2L21.5 7.5V16.5L12 22L2.5 16.5V7.5L12 2Z" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M12 7.5v9M8.1 9.75L12 12l3.9-2.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -89,10 +90,10 @@ function BrandsPageInner() {
             <span className="text-white">&nbsp;Agent</span>
           </a>
           <div className="flex items-center gap-6">
-            <a href="/G304gent/brands" className="text-sm text-cyan-400 font-medium">My Brands</a>
-            <a href="/G304gent/compare" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Compare</a>
-            <a href="/G304gent/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Dashboard</a>
-            <a href="/G304gent/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
+            <a href="/brands" className="text-sm text-cyan-400 font-medium">My Brands</a>
+            <a href="/compare" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Compare</a>
+            <a href="/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Dashboard</a>
+            <a href="/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
             <AccountButton />
           </div>
         </div>
@@ -105,7 +106,7 @@ function BrandsPageInner() {
             <p className="mt-1 text-sm text-gray-500">Track your brands and competitors across AI engines</p>
           </div>
           <a
-            href="/G304gent/compare"
+            href="/compare"
             className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-white transition-all"
           >
             Compare Brands
@@ -439,13 +440,13 @@ function BrandCard({ profile, deleteConfirm, onEdit, onDelete, onDeleteConfirm, 
         {showDashboard ? (
           <>
             <a
-              href={`/G304gent/dashboard?brand=${encodeURIComponent(profile.name)}`}
+              href={`/dashboard?brand=${encodeURIComponent(profile.name)}`}
               className={`flex-1 rounded-lg bg-gradient-to-r ${dashBg} border ${dashBorder} py-2 text-center text-sm font-medium transition-all`}
             >
               View Dashboard
             </a>
             <a
-              href={`/G304gent/compare?a=${encodeURIComponent(profile.name)}`}
+              href={`/compare?a=${encodeURIComponent(profile.name)}`}
               className="rounded-lg border border-white/10 px-3 py-2 text-sm text-gray-500 hover:bg-white/5 hover:text-white transition-all"
             >
               Compare
@@ -453,7 +454,7 @@ function BrandCard({ profile, deleteConfirm, onEdit, onDelete, onDeleteConfirm, 
           </>
         ) : (
           <a
-            href={`/G304gent/compare?b=${encodeURIComponent(profile.name)}`}
+            href={`/compare?b=${encodeURIComponent(profile.name)}`}
             className={`flex-1 rounded-lg bg-gradient-to-r ${dashBg} border ${dashBorder} py-2 text-center text-sm font-medium transition-all`}
           >
             Compare with My Brand

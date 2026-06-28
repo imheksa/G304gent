@@ -8,7 +8,7 @@ export default function LoginRedirect() {
   useLogin({
     onComplete: ({ wasAlreadyAuthenticated }) => {
       if (!wasAlreadyAuthenticated) {
-        window.location.href = "/G304gent/dashboard";
+        window.location.href = "/dashboard";
       }
     },
   });
