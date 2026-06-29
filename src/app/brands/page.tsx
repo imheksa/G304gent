@@ -512,7 +512,10 @@ function saveErrorMessage(err: unknown, label: string): string {
   if (m.includes("name_required")) {
     return `${label} name is required.`;
   }
-  return `Couldn't save this ${label.toLowerCase()}. Please check your connection and try again.`;
+  // Unknown error — show the underlying detail so the cause is visible instead
+  // of hidden behind a generic message.
+  const detail = m ? ` (${m})` : "";
+  return `Couldn't save this ${label.toLowerCase()}${detail}. Please try again.`;
 }
 
 function BrandForm({ initial, existingNames, onSave, onCancel, accentColor = "cyan", label = "Brand" }: {
