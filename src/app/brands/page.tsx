@@ -60,9 +60,14 @@ function BrandsPageInner() {
   }
 
   async function handleRemove(name: string) {
-    await deleteBrand(name, false);
-    await refresh();
-    setDeleteConfirm(null);
+    try {
+      await deleteBrand(name, false);
+      await refresh();
+    } catch {
+      /* keep the card if delete fails */
+    } finally {
+      setDeleteConfirm(null);
+    }
   }
 
   async function handleCompSave(profile: BrandProfile) {
@@ -73,9 +78,14 @@ function BrandsPageInner() {
   }
 
   async function handleCompRemove(name: string) {
-    await deleteBrand(name, true);
-    await refresh();
-    setDeleteConfirm(null);
+    try {
+      await deleteBrand(name, true);
+      await refresh();
+    } catch {
+      /* keep the card if delete fails */
+    } finally {
+      setDeleteConfirm(null);
+    }
   }
 
   const compLimit = TIER_LIMITS[tier];
@@ -486,10 +496,29 @@ function SocialIcon({ href, title, children }: { href: string; title: string; ch
   );
 }
 
+// Turns a server error code (thrown by the store's api helper) into a message
+// the user can act on, instead of silently doing nothing.
+function saveErrorMessage(err: unknown, label: string): string {
+  const m = err instanceof Error ? err.message : "";
+  if (m.includes("unauthorized") || m === "401") {
+    return "Your session expired. Please log out and log in again.";
+  }
+  if (m.includes("not_configured") || m === "501") {
+    return "Saving is temporarily unavailable — the backend isn't configured yet.";
+  }
+  if (m.includes("competitor_limit_reached") || m === "403") {
+    return "You've reached your competitor limit. Upgrade your plan to add more.";
+  }
+  if (m.includes("name_required")) {
+    return `${label} name is required.`;
+  }
+  return `Couldn't save this ${label.toLowerCase()}. Please check your connection and try again.`;
+}
+
 function BrandForm({ initial, existingNames, onSave, onCancel, accentColor = "cyan", label = "Brand" }: {
   initial: BrandProfile | null;
   existingNames: string[];
-  onSave: (profile: BrandProfile) => void;
+  onSave: (profile: BrandProfile) => void | Promise<void>;
   onCancel: () => void;
   accentColor?: "cyan" | "orange";
   label?: string;
@@ -507,13 +536,14 @@ function BrandForm({ initial, existingNames, onSave, onCancel, accentColor = "cy
     }
   );
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const borderColor = accentColor === "cyan" ? "border-cyan-500/20" : "border-orange-500/20";
   const btnGrad = accentColor === "cyan"
     ? "from-cyan-500 to-violet-500 hover:from-cyan-400 hover:to-violet-400"
     : "from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400";
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const name = form.name.trim();
     if (!name) {
@@ -524,7 +554,15 @@ function BrandForm({ initial, existingNames, onSave, onCancel, accentColor = "cy
       setError("A brand with this name already exists");
       return;
     }
-    onSave({ ...form, name });
+    setSubmitting(true);
+    setError("");
+    try {
+      await onSave({ ...form, name });
+      // On success the parent closes (unmounts) this form.
+    } catch (err) {
+      setError(saveErrorMessage(err, label));
+      setSubmitting(false);
+    }
   }
 
   function update(field: keyof BrandProfile, value: string) {
@@ -602,11 +640,11 @@ function BrandForm({ initial, existingNames, onSave, onCancel, accentColor = "cy
         {error && <p className="text-sm text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onCancel} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-white transition-all">
+          <button type="button" onClick={onCancel} disabled={submitting} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-white transition-all disabled:opacity-50">
             Cancel
           </button>
-          <button type="submit" className={`rounded-lg bg-gradient-to-r ${btnGrad} px-6 py-2.5 text-sm font-medium text-white transition-all`}>
-            {isEdit ? "Save Changes" : `Add ${label}`}
+          <button type="submit" disabled={submitting} className={`rounded-lg bg-gradient-to-r ${btnGrad} px-6 py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60`}>
+            {submitting ? "Saving…" : isEdit ? "Save Changes" : `Add ${label}`}
           </button>
         </div>
       </form>

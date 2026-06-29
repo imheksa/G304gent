@@ -30,7 +30,18 @@ async function api(path: string, init?: RequestInit) {
       ...(init?.headers || {}),
     },
   });
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) {
+    // Surface the server's error code (e.g. "unauthorized", "not_configured")
+    // so callers can show a meaningful message instead of failing silently.
+    let detail = String(res.status);
+    try {
+      const body = await res.json();
+      if (body?.error) detail = body.error;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail);
+  }
   return res.json();
 }
 
