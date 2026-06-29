@@ -8,13 +8,10 @@ import CheckoutModal from "@/components/CheckoutModal";
 import PrimaryCTA from "@/components/PrimaryCTA";
 import { PAYMENTS_ENABLED } from "@/lib/web3-config";
 import { fetchBrandNames } from "@/lib/store";
+import { ChipLogo } from "@/components/Logo";
 
 function HexIcon({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className}>
-      <path d="M12 2L21.5 7.5V16.5L12 22L2.5 16.5V7.5L12 2Z" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M12 7.5v9M8.1 9.75L12 12l3.9-2.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  return <ChipLogo className={className} />;
 }
 
 function Navbar() {
@@ -519,6 +516,18 @@ function Footer() {
               <span className="text-white">&nbsp;Agent</span>
             </span>
             <p className="mt-2 text-sm text-gray-500">{t.footer.tagline}</p>
+            <a
+              href="https://x.com/Agent6304"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="6304 Agent on X"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-400 hover:border-cyan-500/30 hover:text-cyan-400 transition-all"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              @Agent6304
+            </a>
           </div>
           <div>
             <h4 className="font-mono text-xs font-semibold uppercase tracking-widest text-gray-400">{t.footer.product}</h4>

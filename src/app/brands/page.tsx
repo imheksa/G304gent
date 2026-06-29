@@ -17,6 +17,7 @@ import {
 } from "@/lib/store";
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
+import { ChipLogo } from "@/components/Logo";
 
 export default function BrandsPage() {
   return (
@@ -97,9 +98,7 @@ function BrandsPageInner() {
       <nav className="border-b border-white/5 bg-gray-950/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 items-center justify-between px-6 sm:px-10 lg:px-16 xl:px-24">
           <a href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-cyan-400">
-              <path d="M12 2L21.5 7.5V16.5L12 22L2.5 16.5V7.5L12 2Z" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M12 7.5v9M8.1 9.75L12 12l3.9-2.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <ChipLogo className="w-5 h-5" />
             <span className="text-gradient">6304</span>
             <span className="text-white">&nbsp;Agent</span>
           </a>
