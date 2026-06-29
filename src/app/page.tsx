@@ -814,9 +814,15 @@ export default function Home() {
     if (!ready || !authenticated) return;
     if (typeof window !== "undefined" && window.location.hash) return;
     setRedirecting(true);
-    fetchBrandNames().then((names) => {
-      window.location.href = names.length > 0 ? "/dashboard" : "/brands";
-    });
+    fetchBrandNames()
+      .then((names) => {
+        window.location.href = names.length > 0 ? "/dashboard" : "/brands";
+      })
+      .catch(() => {
+        // If the lookup fails, don't strand the user on an endless spinner —
+        // fall back to showing the marketing page.
+        setRedirecting(false);
+      });
   }, [ready, authenticated]);
 
   if (redirecting) {

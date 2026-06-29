@@ -1,6 +1,11 @@
 import { PrivyClient } from "@privy-io/server-auth";
+import { PRIVY_APP_ID } from "@/lib/web3-config";
 
-const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "";
+// Must match the App ID the browser SDK uses to mint tokens, otherwise
+// verifyAuthToken rejects on an audience mismatch. web3-config carries the
+// hardcoded default, so the server verifies correctly even when
+// NEXT_PUBLIC_PRIVY_APP_ID is left unset in the deployment environment.
+const appId = PRIVY_APP_ID;
 const appSecret = process.env.PRIVY_APP_SECRET || "";
 
 let privy: PrivyClient | null = null;

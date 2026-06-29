@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserId } from "@/lib/server/auth";
 import { getSupabase, backendConfigured } from "@/lib/server/db";
+import { TIER_LIMITS, type SubscriptionTier } from "@/lib/brand-data";
 
 export const runtime = "nodejs";
 
@@ -55,7 +56,27 @@ export async function POST(req: Request) {
   const p = body.profile ?? {};
   const isCompetitor = Boolean(body.isCompetitor);
   if (!p.name) return NextResponse.json({ error: "name_required" }, { status: 400 });
-  const { error } = await getSupabase()
+
+  const sb = getSupabase();
+
+  // Enforce the competitor cap for the user's tier server-side (the client cap
+  // alone can be bypassed by calling this route directly). Updates to an
+  // existing competitor don't count against the limit.
+  if (isCompetitor) {
+    const [{ data: comps }, { data: sub }] = await Promise.all([
+      sb.from("brands").select("name").eq("user_id", a.userId).eq("is_competitor", true),
+      sb.from("subscriptions").select("tier").eq("user_id", a.userId).maybeSingle(),
+    ]);
+    const tier = ((sub?.tier as SubscriptionTier) ?? "free") as SubscriptionTier;
+    const limit = TIER_LIMITS[tier] ?? TIER_LIMITS.free;
+    const names = (comps ?? []).map((c) => c.name);
+    const isNew = !names.includes(p.name);
+    if (isNew && names.length >= limit) {
+      return NextResponse.json({ error: "competitor_limit_reached" }, { status: 403 });
+    }
+  }
+
+  const { error } = await sb
     .from("brands")
     .upsert(
       {
