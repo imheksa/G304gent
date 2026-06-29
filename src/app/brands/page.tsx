@@ -42,10 +42,14 @@ function BrandsPageInner() {
   }, []);
 
   async function refresh() {
-    const [b, c, t] = await Promise.all([fetchBrands(), fetchCompetitors(), fetchTier()]);
-    setBrands(b);
-    setCompetitors(c);
-    setTier(t);
+    try {
+      const [b, c, t] = await Promise.all([fetchBrands(), fetchCompetitors(), fetchTier()]);
+      setBrands(b);
+      setCompetitors(c);
+      setTier(t);
+    } catch {
+      /* keep the current view if a refresh fails instead of crashing */
+    }
   }
 
   async function handleSave(profile: BrandProfile) {

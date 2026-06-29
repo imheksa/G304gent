@@ -28,13 +28,17 @@ function CompareInner() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchBrandNames(), fetchCompetitorNames()]).then(([mb, comp]) => {
-      if (cancelled) return;
-      setMyBrands(mb);
-      setCompetitors(comp);
-      if (!brandA && mb.length > 0) setBrandA(mb[0]);
-      if (!brandB && comp.length > 0) setBrandB(comp[0]);
-    });
+    Promise.all([fetchBrandNames(), fetchCompetitorNames()])
+      .then(([mb, comp]) => {
+        if (cancelled) return;
+        setMyBrands(mb);
+        setCompetitors(comp);
+        if (!brandA && mb.length > 0) setBrandA(mb[0]);
+        if (!brandB && comp.length > 0) setBrandB(comp[0]);
+      })
+      .catch(() => {
+        /* leave the selectors empty if the lookup fails */
+      });
     return () => {
       cancelled = true;
     };

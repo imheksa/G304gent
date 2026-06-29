@@ -30,34 +30,88 @@ function DashboardInner() {
   const searchParams = useSearchParams();
   const brandParam = searchParams.get("brand");
   const [brand, setBrand] = useState(brandParam || "");
+  const [resolved, setResolved] = useState(Boolean(brandParam));
+  const [loadError, setLoadError] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const { ready, authenticated, level, canAccess, login } = useAccess();
 
   useEffect(() => {
-    if (brandParam || !ready) return;
+    if (brandParam) {
+      setResolved(true);
+      return;
+    }
+    // Wait for Privy to finish initializing before deciding what to show.
+    if (!ready) return;
     if (!authenticated) {
       // Guest preview.
       setBrand("Uniswap");
+      setResolved(true);
       return;
     }
     let cancelled = false;
-    fetchBrandNames().then((names) => {
-      if (cancelled) return;
-      if (names.length > 0) {
-        setBrand(names[0]);
-      } else {
-        // Logged in but no brand yet — send them to add one.
-        window.location.href = "/brands";
-      }
-    });
+    setLoadError(false);
+    fetchBrandNames()
+      .then((names) => {
+        if (cancelled) return;
+        if (names.length > 0) {
+          setBrand(names[0]);
+          setResolved(true);
+        } else {
+          // Logged in but no brand yet — send them to add one.
+          window.location.href = "/brands";
+        }
+      })
+      .catch(() => {
+        // Never strand the user on a blank screen if the lookup fails.
+        if (cancelled) return;
+        setLoadError(true);
+        setResolved(true);
+      });
     return () => {
       cancelled = true;
     };
   }, [brandParam, ready, authenticated]);
 
+  // Still initializing Privy / loading the user's brands — show a spinner
+  // rather than a blank page.
+  if (!resolved) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-950">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+      </div>
+    );
+  }
+
   const data = brand ? generateData(brand) : null;
 
-  if (!data) return null;
+  // Resolved but no brand to show (lookup failed) — offer a recoverable error
+  // instead of a blank screen.
+  if (!data) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-950 px-6 text-center">
+        <p className="text-lg font-semibold text-white">We couldn&apos;t load your dashboard</p>
+        <p className="max-w-sm text-sm text-gray-400">
+          {loadError
+            ? "There was a problem loading your brands. Check your connection and try again."
+            : "No brand selected yet. Add a brand to get started."}
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-gray-300 hover:bg-white/5 transition-all"
+          >
+            Retry
+          </button>
+          <a
+            href="/brands"
+            className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
+          >
+            Go to My Brands
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   const tabs: Tab[] = ["overview", "engines", "alerts", "facts"];
 
