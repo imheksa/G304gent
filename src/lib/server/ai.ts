@@ -1,33 +1,98 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { BrandCore, EngineName } from "@/lib/brand-data";
 
-// The AI engine is optional: when ANTHROPIC_API_KEY isn't set, the app falls
-// back to the deterministic generator so nothing breaks.
-const apiKey = process.env.ANTHROPIC_API_KEY || "";
+// Real multi-engine GEO measurement via OpenRouter (one API key → many models).
+// Each AI engine is queried for what it knows about the brand, then a judge
+// model scores every answer. Disabled (falls back to the generator) when
+// OPENROUTER_API_KEY isn't set.
+const apiKey = process.env.OPENROUTER_API_KEY || "";
 export const aiEnabled = apiKey.length > 0;
 
-let client: Anthropic | null = null;
-function getClient(): Anthropic {
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
-  if (!client) client = new Anthropic({ apiKey });
-  return client;
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+// The engines shown in the dashboard, mapped to an OpenRouter model slug. Cheap
+// models keep a scan to a few cents. Override the slugs via env if a model is
+// renamed/retired (JSON map of engine name → slug).
+const DEFAULT_ENGINE_MODELS: Record<EngineName, string> = {
+  ChatGPT: "openai/gpt-4o-mini",
+  Gemini: "google/gemini-flash-1.5",
+  Claude: "anthropic/claude-3.5-haiku",
+  Grok: "x-ai/grok-2-1212",
+  Deepseek: "deepseek/deepseek-chat",
+  "Google AI": "google/gemini-2.0-flash-001",
+};
+
+function engineModels(): Record<EngineName, string> {
+  try {
+    const override = process.env.OPENROUTER_ENGINE_MODELS;
+    if (override) return { ...DEFAULT_ENGINE_MODELS, ...JSON.parse(override) };
+  } catch {
+    /* ignore malformed override */
+  }
+  return DEFAULT_ENGINE_MODELS;
 }
+
+// The model that scores every engine's answer. Must support JSON-schema output.
+const JUDGE_MODEL = process.env.OPENROUTER_JUDGE_MODEL || "openai/gpt-4o-mini";
 
 const ENGINES: EngineName[] = ["ChatGPT", "Gemini", "Claude", "Grok", "Deepseek", "Google AI"];
 
-// JSON schema the model must fill — drives a structured, parseable response.
-const SCHEMA = {
+async function callOpenRouter(
+  body: Record<string, unknown>,
+  timeoutMs = 30000
+): Promise<string> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-Title": "6304 Agent",
+      },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`openrouter ${res.status}`);
+    const json = await res.json();
+    const content = json?.choices?.[0]?.message?.content;
+    if (typeof content !== "string") throw new Error("openrouter_no_content");
+    return content;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Ask one engine what it knows about the brand. Returns null if the call fails
+// (the engine is then treated as "not_found").
+async function queryEngine(brand: string, model: string): Promise<string | null> {
+  try {
+    return await callOpenRouter({
+      model,
+      max_tokens: 400,
+      messages: [
+        {
+          role: "user",
+          content: `What do you know about the Web3 project "${brand}"? Briefly cover what it is, its category, trading/fees, security and audits, and tokenomics. If you are not familiar with it, say so plainly. Keep it under 180 words.`,
+        },
+      ],
+    });
+  } catch {
+    return null;
+  }
+}
+
+const JUDGE_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["brandScore", "soa", "accuracy", "citation", "engines", "alerts", "topQueries", "canonicalFacts"],
   properties: {
-    brandScore: { type: "integer", description: "Overall AI-visibility score 0-100" },
-    soa: { type: "integer", description: "Share of Answer percentage 0-100" },
-    accuracy: { type: "integer", description: "Accuracy of AI claims about the brand 0-100" },
-    citation: { type: "integer", description: "How often AI cites the brand as a source 0-100" },
+    brandScore: { type: "integer" },
+    soa: { type: "integer" },
+    accuracy: { type: "integer" },
+    citation: { type: "integer" },
     engines: {
       type: "array",
-      description: "One entry per AI engine, in this exact order: ChatGPT, Gemini, Claude, Grok, Deepseek, Google AI",
       items: {
         type: "object",
         additionalProperties: false,
@@ -42,7 +107,6 @@ const SCHEMA = {
     },
     alerts: {
       type: "array",
-      description: "3-5 concrete misinformation or visibility issues",
       items: {
         type: "object",
         additionalProperties: false,
@@ -57,7 +121,6 @@ const SCHEMA = {
     },
     topQueries: {
       type: "array",
-      description: "3 representative user queries about the brand",
       items: {
         type: "object",
         additionalProperties: false,
@@ -72,7 +135,6 @@ const SCHEMA = {
     },
     canonicalFacts: {
       type: "array",
-      description: "4-6 key facts about the brand and whether AI represents them correctly",
       items: {
         type: "object",
         additionalProperties: false,
@@ -87,29 +149,30 @@ const SCHEMA = {
   },
 } as const;
 
-const SYSTEM = `You are 6304 Agent, a Generative Engine Optimization (GEO) analyst for Web3.
-Assess how major AI engines (ChatGPT, Gemini, Claude, Grok, Deepseek, Google AI) currently represent a given Web3 project, based on your knowledge of it.
-Judge: is the project mentioned, are facts (fees, audits, custody, tokenomics, launch year, TVL) accurate, and how prominent is it in AI answers.
-Be realistic and specific to the actual project. If you don't recognize the project, reflect that with low visibility, low accuracy, and "not_found" on most engines. Return only the structured fields.`;
+const JUDGE_SYSTEM = `You are 6304 Agent, a Generative Engine Optimization (GEO) analyst for Web3.
+You are given the actual responses several AI engines gave about a Web3 project. Score how well each engine represents the project:
+- status "mentioned" if the engine gave substantive, on-topic information; "not_found" if it didn't recognize the project or gave nothing useful.
+- accuracy 0-100: are the facts (fees, audits, custody, tokenomics, launch year, TVL) correct and current.
+- soa 0-100: how prominent/complete the project is in that engine's answer.
+Then give overall brandScore, share of answer (soa), accuracy, and citation (how often engines cite it as a source). List concrete misinformation as alerts, plausible user queries as topQueries, and key project facts with whether engines represent them correctly as canonicalFacts. Base everything on the provided responses. Output only the structured fields.`;
 
 function clamp(n: unknown, lo = 0, hi = 100): number {
   const v = typeof n === "number" && Number.isFinite(n) ? Math.round(n) : 0;
   return Math.max(lo, Math.min(hi, v));
 }
 
-// Coerce the model output into a safe, complete BrandCore (exactly six engines,
-// clamped numbers, non-empty arrays) so the dashboard never breaks on a stray
-// response.
-function normalize(raw: BrandCore, brand: string): BrandCore {
+// Coerce the judge output into a safe, complete BrandCore. Engines that failed
+// to respond are forced to "not_found" regardless of what the judge guessed.
+function normalize(raw: BrandCore, brand: string, failed: Set<EngineName>): BrandCore {
   const byName = new Map((raw.engines ?? []).map((e) => [e.name, e]));
   const engines = ENGINES.map((name) => {
     const e = byName.get(name);
-    const status = e?.status === "not_found" ? "not_found" : "mentioned";
+    const found = !failed.has(name) && e?.status !== "not_found";
     return {
       name,
-      status: status as "mentioned" | "not_found",
-      accuracy: status === "not_found" ? 0 : clamp(e?.accuracy),
-      soa: status === "not_found" ? 0 : clamp(e?.soa),
+      status: (found ? "mentioned" : "not_found") as "mentioned" | "not_found",
+      accuracy: found ? clamp(e?.accuracy) : 0,
+      soa: found ? clamp(e?.soa) : 0,
     };
   });
   const alerts = (raw.alerts ?? []).slice(0, 5).map((a) => ({
@@ -141,22 +204,40 @@ function normalize(raw: BrandCore, brand: string): BrandCore {
   };
 }
 
-// Queries Claude for a real assessment of how AI engines represent the brand.
+// Queries every engine for real, then has the judge score the answers.
 export async function analyzeBrandVisibility(brand: string): Promise<BrandCore> {
-  const res = await getClient().messages.create({
-    model: "claude-opus-4-8",
-    max_tokens: 4000,
-    output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-    system: SYSTEM,
-    messages: [
-      {
-        role: "user",
-        content: `Assess the AI search visibility of the Web3 project "${brand}". Fill every field of the schema based on what these AI engines actually say about it today.`,
+  const models = engineModels();
+
+  // 1. Query all engines in parallel.
+  const answers = await Promise.all(
+    ENGINES.map(async (name) => ({ name, text: await queryEngine(brand, models[name]) }))
+  );
+  const failed = new Set<EngineName>(answers.filter((a) => !a.text).map((a) => a.name));
+
+  // 2. Judge scores every engine's answer.
+  const transcript = answers
+    .map((a) => `### ${a.name}\n${a.text ? a.text.trim() : "(no response — engine did not recognize the project)"}`)
+    .join("\n\n");
+
+  const content = await callOpenRouter(
+    {
+      model: JUDGE_MODEL,
+      max_tokens: 2000,
+      messages: [
+        { role: "system", content: JUDGE_SYSTEM },
+        {
+          role: "user",
+          content: `Project: "${brand}"\n\nHere is what each AI engine said about it:\n\n${transcript}\n\nScore each engine and the project overall.`,
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "brand_visibility", strict: true, schema: JUDGE_SCHEMA },
       },
-    ],
-  });
-  const block = res.content.find((b) => b.type === "text");
-  if (!block || block.type !== "text") throw new Error("ai_no_output");
-  const parsed = JSON.parse(block.text) as BrandCore;
-  return normalize(parsed, brand);
+    },
+    45000
+  );
+
+  const parsed = JSON.parse(content) as BrandCore;
+  return normalize(parsed, brand, failed);
 }

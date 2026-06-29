@@ -27,9 +27,10 @@ breaks during setup.
    - `PRIVY_APP_SECRET` = *(from step 2)*
    - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` = *(from step 1)*
    - *(AI engine, optional)* `NEXT_PUBLIC_AI_ENABLED` = `1` and
-     `ANTHROPIC_API_KEY` = *(from https://console.anthropic.com)* — powers the
-     dashboard with real AI-visibility scans (Claude). Leave both unset to use
-     the built-in sample data.
+     `OPENROUTER_API_KEY` = *(from https://openrouter.ai/keys)* — powers the
+     dashboard with real multi-engine AI-visibility scans (queries GPT, Gemini,
+     Claude, Grok & Deepseek via one OpenRouter key, then a judge model scores
+     them). Leave both unset to use the built-in sample data.
    - *(optional)* `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_RECIPIENT_WALLET`,
      `NEXT_PUBLIC_SOLANA_RPC_URL` — defaults are already in the code.
 4. Set the **Production Branch** to the branch with this code, then **Deploy**.
