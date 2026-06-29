@@ -29,3 +29,21 @@ export async function getUserId(req: Request): Promise<string | null> {
     return null;
   }
 }
+
+// Returns the Solana wallet addresses linked to a Privy user. Used to bind an
+// on-chain payment to the authenticated user (the tx must be paid by one of
+// their wallets). Throws if the Privy lookup fails so callers can distinguish a
+// transient outage from a user that simply has no Solana wallet.
+export async function getUserSolanaWallets(userId: string): Promise<string[]> {
+  const user = await getPrivy().getUser(userId);
+  const accounts = (user?.linkedAccounts ?? []) as unknown as Array<Record<string, unknown>>;
+  return accounts
+    .filter((a) => {
+      const addr = a.address;
+      if (typeof addr !== "string" || addr.startsWith("0x")) return false;
+      // Privy tags Solana wallets with chainType "solana"; fall back to any
+      // non-EVM wallet address for older account shapes.
+      return a.chainType === "solana" || a.type === "wallet";
+    })
+    .map((a) => a.address as string);
+}
