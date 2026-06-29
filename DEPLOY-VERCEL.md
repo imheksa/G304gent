@@ -26,6 +26,10 @@ breaks during setup.
    - `NEXT_PUBLIC_USE_BACKEND` = `1`
    - `PRIVY_APP_SECRET` = *(from step 2)*
    - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` = *(from step 1)*
+   - *(AI engine, optional)* `NEXT_PUBLIC_AI_ENABLED` = `1` and
+     `ANTHROPIC_API_KEY` = *(from https://console.anthropic.com)* — powers the
+     dashboard with real AI-visibility scans (Claude). Leave both unset to use
+     the built-in sample data.
    - *(optional)* `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_RECIPIENT_WALLET`,
      `NEXT_PUBLIC_SOLANA_RPC_URL` — defaults are already in the code.
 4. Set the **Production Branch** to the branch with this code, then **Deploy**.

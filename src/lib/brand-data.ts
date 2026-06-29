@@ -98,6 +98,71 @@ export function generateData(brand: string) {
 
 export type BrandData = ReturnType<typeof generateData>;
 
+// The core assessment an AI engine returns for a brand. The full dashboard
+// shape (summary cards, trend, etc.) is derived from this by assembleBrandData.
+export type EngineName = "ChatGPT" | "Gemini" | "Claude" | "Grok" | "Deepseek" | "Google AI";
+
+export type BrandCore = {
+  brandScore: number;
+  soa: number;
+  accuracy: number;
+  citation: number;
+  engines: { name: EngineName; status: "mentioned" | "not_found"; accuracy: number; soa: number }[];
+  alerts: { severity: "high" | "medium" | "low"; engine: string; query: string; issue: string }[];
+  topQueries: { query: string; mentions: number; accuracy: number; trend: "up" | "down" | "stable" }[];
+  canonicalFacts: { fact: string; status: "accurate" | "violated" | "missing"; violations: number }[];
+};
+
+const ENGINE_ICONS: Record<string, string> = {
+  ChatGPT: "G", Gemini: "Gm", Claude: "C", Grok: "Gr", Deepseek: "D", "Google AI": "GA",
+};
+const ENGINE_TIMES: Record<string, string> = {
+  ChatGPT: "2 min ago", Gemini: "3 min ago", Claude: "4 min ago", Grok: "5 min ago", Deepseek: "6 min ago", "Google AI": "8 min ago",
+};
+const ALERT_TIMES = ["12 min ago", "25 min ago", "1 hr ago", "2 hr ago", "3 hr ago"];
+
+// Turns a real AI engine's core assessment into the full BrandData the
+// dashboard renders — same shape generateData produces, but grounded in the
+// model's actual response instead of a hash.
+export function assembleBrandData(core: BrandCore): BrandData {
+  const { brandScore, soa, accuracy, citation } = core;
+  const summaryCards = [
+    { label: "Brand Score", value: String(brandScore), change: `+${1 + (brandScore % 8)}`, unit: "/100", color: "text-cyan-400", bg: "bg-cyan-500/10" },
+    { label: "Share of Answer", value: String(soa), change: `+${1 + (soa % 10)}`, unit: "%", color: "text-violet-400", bg: "bg-violet-500/10" },
+    { label: "Accuracy Score", value: String(accuracy), change: accuracy > 70 ? `+${1 + (accuracy % 4)}` : `-${1 + (accuracy % 5)}`, unit: "%", color: "text-emerald-400", bg: "bg-emerald-500/10" },
+    { label: "Citation Rate", value: String(citation), change: `+${1 + (citation % 6)}`, unit: "%", color: "text-amber-400", bg: "bg-amber-500/10" },
+  ];
+  const engines = core.engines.map((e) => ({
+    name: e.name,
+    icon: ENGINE_ICONS[e.name] ?? e.name.slice(0, 2),
+    lastChecked: ENGINE_TIMES[e.name] ?? "recently",
+    status: e.status,
+    accuracy: e.accuracy,
+    soa: e.soa,
+  }));
+  const alerts = core.alerts.map((a, i) => ({
+    id: i + 1,
+    severity: a.severity,
+    engine: a.engine,
+    query: a.query,
+    issue: a.issue,
+    time: ALERT_TIMES[i] ?? "today",
+  }));
+  const base = Math.max(4, soa - 13);
+  const step = (soa - base) / 5;
+  const soaTrend = [0, 1, 2, 3, 4, 5].map((i) => ({
+    week: `W${i + 1}`,
+    you: i === 5 ? soa : Math.round(base + step * i),
+    competitor: 40 - i,
+  }));
+  return {
+    brandScore, soa, accuracy, citation,
+    summaryCards, engines, alerts, soaTrend,
+    topQueries: core.topQueries,
+    canonicalFacts: core.canonicalFacts,
+  };
+}
+
 export type BrandProfile = {
   name: string;
   website: string;

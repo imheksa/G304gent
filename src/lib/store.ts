@@ -11,7 +11,9 @@ import {
   getUserTier,
   setUserTier,
   TIER_LABELS,
+  generateData,
   type BrandProfile,
+  type BrandData,
   type SubscriptionTier,
 } from "./brand-data";
 
@@ -19,6 +21,10 @@ import {
 // database. Otherwise everything falls back to localStorage so the app keeps
 // working unchanged.
 const BACKEND = process.env.NEXT_PUBLIC_USE_BACKEND === "1";
+
+// When the AI backend is enabled, the dashboard pulls real AI-visibility scans
+// from /api/scan instead of the deterministic generator.
+export const AI_ENABLED = process.env.NEXT_PUBLIC_AI_ENABLED === "1";
 
 async function api(path: string, init?: RequestInit) {
   const token = await getAccessToken();
@@ -108,4 +114,21 @@ export async function activateTierByPayment(
     body: JSON.stringify({ plan, asset, signature }),
   });
   return tier as SubscriptionTier;
+}
+
+// Latest stored AI scan for a brand, or null if none has been run yet.
+export async function fetchScan(brand: string): Promise<BrandData | null> {
+  if (!AI_ENABLED) return generateData(brand);
+  const { data } = await api(`/api/scan?brand=${encodeURIComponent(brand)}`);
+  return (data as BrandData | null) ?? null;
+}
+
+// Runs a fresh AI scan for the brand and returns the assembled dashboard data.
+export async function requestScan(brand: string): Promise<BrandData> {
+  if (!AI_ENABLED) return generateData(brand);
+  const { data } = await api("/api/scan", {
+    method: "POST",
+    body: JSON.stringify({ brand }),
+  });
+  return data as BrandData;
 }

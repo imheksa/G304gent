@@ -35,7 +35,21 @@ create table if not exists public.payments (
 );
 create index if not exists payments_user_idx on public.payments (user_id);
 
+-- AI visibility scans. One row per (user, brand); the computed dashboard data
+-- (metrics, engines, alerts, facts) is stored as JSON. Re-running a scan upserts.
+create table if not exists public.scans (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  brand_name text not null,
+  engine text not null default 'claude',
+  data jsonb not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, brand_name)
+);
+create index if not exists scans_user_idx on public.scans (user_id);
+
 -- Lock down: only the service role (used by the server) may access these.
 alter table public.brands enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.payments enable row level security;
+alter table public.scans enable row level security;

@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.107.0",
     "@privy-io/react-auth": "^3.32.2",
     "@privy-io/server-auth": "^1.32.5",
     "@solana-program/memo": "^0.10.0",
