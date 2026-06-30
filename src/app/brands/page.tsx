@@ -14,6 +14,8 @@ import {
   saveBrand,
   deleteBrand,
   fetchTier,
+  quickScan,
+  AI_ENABLED,
 } from "@/lib/store";
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
@@ -360,6 +362,27 @@ function BrandCard({ profile, deleteConfirm, onEdit, onDelete, onDeleteConfirm, 
   const data = generateData(profile.name);
   const foundCount = data.engines.filter((e) => e.status === "mentioned").length;
   const highAlerts = data.alerts.filter((a) => a.severity === "high").length;
+
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState("");
+
+  async function handleQuickScan() {
+    setScanning(true);
+    setScanMsg("");
+    const r = await quickScan(profile.name);
+    if (r.status === "ok") {
+      // Scan stored — open the dashboard to view it.
+      window.location.href = `/dashboard?brand=${encodeURIComponent(profile.name)}`;
+      return;
+    }
+    if (r.status === "cooldown") {
+      const mins = Math.ceil(r.retryAfterMs / 60000);
+      setScanMsg(`Quick Scan runs once per hour — try again in ${mins > 1 ? `${mins} min` : "about a minute"}.`);
+    } else if (r.status === "error") {
+      setScanMsg("Scan failed. Please try again later.");
+    }
+    setScanning(false);
+  }
   const hasLinks = profile.website || profile.twitter || profile.instagram || profile.linkedin || profile.blog;
 
   const borderHover = accent === "cyan" ? "hover:border-cyan-500/20" : "hover:border-orange-500/20";
@@ -449,7 +472,20 @@ function BrandCard({ profile, deleteConfirm, onEdit, onDelete, onDeleteConfirm, 
         </div>
       </div>
 
-      <div className="border-t border-white/5 px-6 py-3 flex gap-2">
+      <div className="border-t border-white/5 px-6 py-3 space-y-2">
+        {AI_ENABLED && showDashboard && (
+          <>
+            <button
+              onClick={handleQuickScan}
+              disabled={scanning}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 py-2 text-sm font-medium text-cyan-400 hover:bg-cyan-500/10 transition-all disabled:opacity-50"
+            >
+              {scanning ? "Scanning across AI engines…" : "⚡ Quick Scan"}
+            </button>
+            {scanMsg && <p className="text-center text-xs text-amber-400">{scanMsg}</p>}
+          </>
+        )}
+        <div className="flex gap-2">
         {showDashboard ? (
           <>
             <a
@@ -473,6 +509,7 @@ function BrandCard({ profile, deleteConfirm, onEdit, onDelete, onDeleteConfirm, 
             Compare with My Brand
           </a>
         )}
+        </div>
       </div>
     </div>
   );

@@ -4,7 +4,13 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { generateData, type BrandData } from "@/lib/brand-data";
-import { fetchBrandNames, fetchScan, requestScan, AI_ENABLED } from "@/lib/store";
+import { fetchBrandNames, fetchScan, requestScan, quickScan, AI_ENABLED } from "@/lib/store";
+
+// Formats a remaining-cooldown duration as a short "Xm" / "Xs" label.
+function minutesUntil(ms: number): string {
+  const mins = Math.ceil(ms / 60000);
+  return mins > 1 ? `${mins} min` : "about a minute";
+}
 import AccountButton from "@/components/AccountButton";
 import { ChipLogo } from "@/components/Logo";
 import { useAccess, goToPricing, type AccessLevel } from "@/lib/use-access";
@@ -36,25 +42,24 @@ function DashboardInner() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [aiData, setAiData] = useState<BrandData | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [rescanMsg, setRescanMsg] = useState("");
   const { ready, authenticated, level, canAccess, login } = useAccess();
 
-  // Load (or run) the real AI scan for the active brand when the AI backend
-  // is on. Uses the stored scan if one exists; otherwise runs a fresh one.
-  async function runScan(target: string, force = false) {
-    setAiData(null);
-    try {
-      let d = force ? null : await fetchScan(target);
-      if (!d) {
-        setScanning(true);
-        d = await requestScan(target);
-      }
-      setAiData(d);
-    } catch {
-      // Fall back to the generator so the dashboard still renders.
-      setAiData(generateData(target));
-    } finally {
-      setScanning(false);
+  // Re-run the AI scan for the active brand (the dashboard's Re-scan button).
+  // Keeps the current view; surfaces the once-per-hour cooldown as a message.
+  async function runScan(target: string) {
+    setScanning(true);
+    setRescanMsg("");
+    const r = await quickScan(target);
+    if (r.status === "ok") {
+      setAiData(r.data);
+    } else if (r.status === "cooldown") {
+      if (r.data) setAiData(r.data);
+      setRescanMsg(`Scanned recently — next scan in ${minutesUntil(r.retryAfterMs)}.`);
+    } else if (r.status === "error") {
+      setRescanMsg("Scan failed. Please try again later.");
     }
+    setScanning(false);
   }
 
   useEffect(() => {
@@ -194,7 +199,7 @@ function DashboardInner() {
             </span>
             {AI_ENABLED && (
               <button
-                onClick={() => runScan(brand, true)}
+                onClick={() => runScan(brand)}
                 disabled={scanning}
                 className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white transition-all disabled:opacity-50"
               >
@@ -208,6 +213,8 @@ function DashboardInner() {
             )}
           </div>
         </div>
+
+        {rescanMsg && <p className="mt-2 text-right text-xs text-amber-400">{rescanMsg}</p>}
 
         <div className="mt-6 flex gap-1 rounded-lg border border-white/5 bg-gray-900/50 p-1 overflow-x-auto">
           {tabs.map((tab) => {
