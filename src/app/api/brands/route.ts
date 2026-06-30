@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserId } from "@/lib/server/auth";
 import { getSupabase, backendConfigured } from "@/lib/server/db";
+import { getEffectiveTier } from "@/lib/server/access";
 import { TIER_LIMITS, type SubscriptionTier } from "@/lib/brand-data";
 
 export const runtime = "nodejs";
@@ -63,11 +64,11 @@ export async function POST(req: Request) {
   // alone can be bypassed by calling this route directly). Updates to an
   // existing competitor don't count against the limit.
   if (isCompetitor) {
-    const [{ data: comps }, { data: sub }] = await Promise.all([
+    const [{ data: comps }, tierStr] = await Promise.all([
       sb.from("brands").select("name").eq("user_id", a.userId).eq("is_competitor", true),
-      sb.from("subscriptions").select("tier").eq("user_id", a.userId).maybeSingle(),
+      getEffectiveTier(a.userId),
     ]);
-    const tier = ((sub?.tier as SubscriptionTier) ?? "free") as SubscriptionTier;
+    const tier = (tierStr as SubscriptionTier) ?? "free";
     const limit = TIER_LIMITS[tier] ?? TIER_LIMITS.free;
     const names = (comps ?? []).map((c) => c.name);
     const isNew = !names.includes(p.name);
