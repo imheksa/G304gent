@@ -5,8 +5,11 @@ import { aiEnabled, analyzeBrandVisibility } from "@/lib/server/ai";
 import { assembleBrandData } from "@/lib/brand-data";
 
 export const runtime = "nodejs";
-// The Claude call can take a few seconds — allow more than the default budget.
+// The scan can take a few seconds — allow more than the default budget.
 export const maxDuration = 60;
+
+// A brand can be scanned at most once per hour.
+const COOLDOWN_MS = 60 * 60 * 1000;
 
 async function requireUser(req: Request) {
   if (!aiEnabled) return { error: NextResponse.json({ error: "ai_disabled" }, { status: 501 }) };
@@ -42,6 +45,28 @@ export async function POST(req: Request) {
   const brand = String(body.brand ?? "").trim();
   if (!brand) return NextResponse.json({ error: "brand_required" }, { status: 400 });
 
+  const sb = backendConfigured ? getSupabase() : null;
+
+  // Rate limit: at most one scan per brand per hour. Return the cached scan
+  // plus how long until the next one is allowed.
+  if (sb) {
+    const { data: existing } = await sb
+      .from("scans")
+      .select("data, created_at")
+      .eq("user_id", a.userId)
+      .eq("brand_name", brand)
+      .maybeSingle();
+    if (existing?.created_at) {
+      const ageMs = Date.now() - new Date(existing.created_at).getTime();
+      if (ageMs < COOLDOWN_MS) {
+        return NextResponse.json(
+          { error: "rate_limited", retryAfterMs: COOLDOWN_MS - ageMs, data: existing.data },
+          { status: 429 }
+        );
+      }
+    }
+  }
+
   let data;
   try {
     const core = await analyzeBrandVisibility(brand);
@@ -50,8 +75,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "scan_failed" }, { status: 502 });
   }
 
-  if (backendConfigured) {
-    const { error } = await getSupabase()
+  if (sb) {
+    const { error } = await sb
       .from("scans")
       .upsert(
         { user_id: a.userId, brand_name: brand, engine: "claude", data, created_at: new Date().toISOString() },

@@ -132,3 +132,27 @@ export async function requestScan(brand: string): Promise<BrandData> {
   });
   return data as BrandData;
 }
+
+export type QuickScanResult =
+  | { status: "ok"; data: BrandData }
+  | { status: "cooldown"; data: BrandData | null; retryAfterMs: number }
+  | { status: "disabled" }
+  | { status: "error"; message: string };
+
+// Like requestScan but never throws — surfaces the once-per-hour cooldown (429)
+// as a result instead of an error, so the UI can show a friendly message.
+export async function quickScan(brand: string): Promise<QuickScanResult> {
+  if (!AI_ENABLED) return { status: "disabled" };
+  const token = await getAccessToken();
+  const res = await fetch("/api/scan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+    body: JSON.stringify({ brand }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (res.status === 429) {
+    return { status: "cooldown", data: (body.data as BrandData) ?? null, retryAfterMs: Number(body.retryAfterMs) || 0 };
+  }
+  if (!res.ok) return { status: "error", message: String(body.error || res.status) };
+  return { status: "ok", data: body.data as BrandData };
+}
