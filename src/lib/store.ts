@@ -22,9 +22,13 @@ import {
 // working unchanged.
 const BACKEND = process.env.NEXT_PUBLIC_USE_BACKEND === "1";
 
-// When the AI backend is enabled, the dashboard pulls real AI-visibility scans
-// from /api/scan instead of the deterministic generator.
-export const AI_ENABLED = process.env.NEXT_PUBLIC_AI_ENABLED === "1";
+// Controls the AI experience (real scans on the dashboard + the Quick Scan
+// button). On whenever the backend is on, or when explicitly flagged. The
+// server still gates actual scanning on OPENROUTER_API_KEY, so this safely
+// falls back to sample data if AI isn't configured server-side.
+export const AI_ENABLED =
+  BACKEND ||
+  ["1", "true", "yes", "on"].includes((process.env.NEXT_PUBLIC_AI_ENABLED || "").trim().toLowerCase());
 
 async function api(path: string, init?: RequestInit) {
   const token = await getAccessToken();
