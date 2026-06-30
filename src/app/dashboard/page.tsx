@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { generateData, type BrandData } from "@/lib/brand-data";
-import { fetchBrandNames } from "@/lib/store";
+import { fetchBrandNames, fetchScan, requestScan, AI_ENABLED } from "@/lib/store";
 import AccountButton from "@/components/AccountButton";
 import { ChipLogo } from "@/components/Logo";
 import { useAccess, goToPricing, type AccessLevel } from "@/lib/use-access";
@@ -34,7 +34,53 @@ function DashboardInner() {
   const [resolved, setResolved] = useState(Boolean(brandParam));
   const [loadError, setLoadError] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [aiData, setAiData] = useState<BrandData | null>(null);
+  const [scanning, setScanning] = useState(false);
   const { ready, authenticated, level, canAccess, login } = useAccess();
+
+  // Load (or run) the real AI scan for the active brand when the AI backend
+  // is on. Uses the stored scan if one exists; otherwise runs a fresh one.
+  async function runScan(target: string, force = false) {
+    setAiData(null);
+    try {
+      let d = force ? null : await fetchScan(target);
+      if (!d) {
+        setScanning(true);
+        d = await requestScan(target);
+      }
+      setAiData(d);
+    } catch {
+      // Fall back to the generator so the dashboard still renders.
+      setAiData(generateData(target));
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!AI_ENABLED || !brand) return;
+    let cancelled = false;
+    setAiData(null);
+    setScanning(false);
+    (async () => {
+      try {
+        let d = await fetchScan(brand);
+        if (cancelled) return;
+        if (!d) {
+          setScanning(true);
+          d = await requestScan(brand);
+        }
+        if (!cancelled) setAiData(d);
+      } catch {
+        if (!cancelled) setAiData(generateData(brand));
+      } finally {
+        if (!cancelled) setScanning(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [brand]);
 
   useEffect(() => {
     if (brandParam) {
@@ -83,7 +129,13 @@ function DashboardInner() {
     );
   }
 
-  const data = brand ? generateData(brand) : null;
+  // With the AI backend on, the brand's data comes from a real scan loaded via
+  // /api/scan; show a scanning screen until it's ready.
+  if (AI_ENABLED && brand && !aiData) {
+    return <ScanningScreen brand={brand} scanning={scanning} />;
+  }
+
+  const data = AI_ENABLED ? aiData : brand ? generateData(brand) : null;
 
   // Resolved but no brand to show (lookup failed) — offer a recoverable error
   // instead of a blank screen.
@@ -140,6 +192,15 @@ function DashboardInner() {
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Live Monitoring
             </span>
+            {AI_ENABLED && (
+              <button
+                onClick={() => runScan(brand, true)}
+                disabled={scanning}
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white transition-all disabled:opacity-50"
+              >
+                {scanning ? "Scanning…" : "Re-scan"}
+              </button>
+            )}
             {level === "subscribed" && (
               <button className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all">
                 Export Report
@@ -184,6 +245,24 @@ function DashboardInner() {
           {activeTab === "alerts" && canAccess("subscribed") && <AlertsTab data={data} />}
           {activeTab === "facts" && canAccess("subscribed") && <FactsTab data={data} />}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ScanningScreen({ brand, scanning }: { brand: string; scanning: boolean }) {
+  return (
+    <div className="min-h-screen bg-gray-950">
+      <DashboardNav />
+      <div className="flex flex-col items-center justify-center gap-4 px-6 py-32 text-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+        <p className="text-lg font-semibold text-white">
+          {scanning ? `Scanning ${brand} across AI engines…` : `Loading ${brand}…`}
+        </p>
+        <p className="max-w-sm text-sm text-gray-500">
+          Querying ChatGPT, Gemini, Claude, Grok, Deepseek &amp; Google AI for how they represent{" "}
+          <span className="text-gray-300">{brand}</span>. This can take a few seconds.
+        </p>
       </div>
     </div>
   );
