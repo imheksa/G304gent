@@ -144,6 +144,38 @@ export type QuickScanResult =
   | { status: "disabled" }
   | { status: "error"; message: string };
 
+// --- Distribute: Wikidata ---
+
+export type WikidataMatch = { id: string; label: string; description: string; url: string };
+export type WikidataResult = { id: string; url: string; added: string[]; created: boolean };
+
+// Search Wikidata for an existing item with this name (public, no auth).
+export async function wikidataSearch(name: string): Promise<WikidataMatch[]> {
+  const res = await fetch(`/api/distribute/wikidata?name=${encodeURIComponent(name)}`);
+  if (!res.ok) return [];
+  const b = await res.json().catch(() => ({}));
+  return (b.matches as WikidataMatch[]) ?? [];
+}
+
+// Submit the brand's structured identity to Wikidata using the user's bot
+// password. Throws with the server's error message on failure.
+export async function wikidataSubmit(payload: {
+  name: string;
+  description?: string;
+  website?: string;
+  twitter?: string;
+  mode: "create" | "existing";
+  qid?: string;
+  username: string;
+  password: string;
+}): Promise<WikidataResult> {
+  const { result } = await api("/api/distribute/wikidata", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return result as WikidataResult;
+}
+
 export type ScanProgressEvent =
   | { type: "engine_start"; name: string }
   | { type: "engine_done"; name: string; found: boolean }

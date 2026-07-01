@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { fetchBrands, fetchScan } from "@/lib/store";
+import { fetchBrands, fetchScan, wikidataSearch, wikidataSubmit, type WikidataMatch, type WikidataResult } from "@/lib/store";
 import { getUserFacts, type BrandProfile } from "@/lib/brand-data";
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
@@ -138,6 +138,7 @@ function DistributeInner() {
                     <AssetCard title="Facts Sheet" subtitle="Markdown — publish at yoursite.com/facts" filename={`${slug(profile.name)}-facts.md`} content={buildMarkdown(profile, facts)} />
                     <AssetCard title="Structured Data" subtitle="JSON-LD (schema.org) — embed in your page <head>" filename={`${slug(profile.name)}.jsonld`} content={buildJsonLd(profile, facts)} />
                     <AssetCard title="llms.txt" subtitle="Publish at yoursite.com/llms.txt" filename="llms.txt" content={buildLlmsTxt(profile, facts)} />
+                    <WikidataCard profile={profile} facts={facts} />
                   </div>
 
                   {locked && (
@@ -201,6 +202,160 @@ function AssetCard({ title, subtitle, filename, content }: { title: string; subt
         </div>
       </div>
       <pre className="mt-4 max-h-72 overflow-auto rounded-lg border border-white/5 bg-gray-950/70 p-4 text-xs leading-relaxed text-gray-300">{content}</pre>
+    </div>
+  );
+}
+
+// Direct submission to Wikidata — the one high-authority surface with an open
+// write API. Uses the user's own bot password so edits are attributed to them.
+function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string[] }) {
+  const [matches, setMatches] = useState<WikidataMatch[]>([]);
+  const [searching, setSearching] = useState(true);
+  const [mode, setMode] = useState<"existing" | "create">("existing");
+  const [qid, setQid] = useState("");
+  const [description, setDescription] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<WikidataResult | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setSearching(true);
+    setResult(null);
+    setError("");
+    setDescription(facts[0]?.slice(0, 240) ?? "");
+    wikidataSearch(profile.name)
+      .then((m) => {
+        if (cancelled) return;
+        setMatches(m);
+        if (m.length > 0) { setMode("existing"); setQid(m[0].id); }
+        else setMode("create");
+      })
+      .catch(() => { if (!cancelled) setMatches([]); })
+      .finally(() => { if (!cancelled) setSearching(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.name]);
+
+  const submit = async () => {
+    setSubmitting(true);
+    setError("");
+    setResult(null);
+    try {
+      const r = await wikidataSubmit({
+        name: profile.name,
+        description,
+        website: profile.website,
+        twitter: profile.twitter,
+        mode,
+        qid: mode === "existing" ? qid : undefined,
+        username,
+        password,
+      });
+      setResult(r);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "submit failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const willWrite = [
+    mode === "create" ? `Label: ${profile.name}` : null,
+    mode === "create" && description ? `Description: ${description}` : null,
+    profile.website ? `Official website (P856): ${profile.website}` : null,
+    profile.twitter ? `X/Twitter (P2002): ${profile.twitter.replace(/^@/, "")}` : null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <div className="rounded-xl border border-violet-500/20 bg-gradient-to-b from-violet-500/[0.06] to-gray-900/50 p-5">
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-semibold text-white">Submit to Wikidata</h3>
+        <span className="rounded-full bg-violet-500/10 px-2 py-0.5 font-mono text-[10px] text-violet-300">DIRECT</span>
+      </div>
+      <p className="mt-0.5 text-xs text-gray-500">
+        Wikidata feeds Google&apos;s Knowledge Graph and is weighted heavily by most AI models — the one surface with an open write API.
+      </p>
+
+      {searching ? (
+        <p className="mt-4 text-sm text-gray-400">Checking Wikidata for an existing item…</p>
+      ) : (
+        <div className="mt-4 space-y-4">
+          {/* target */}
+          <div className="space-y-2">
+            {matches.length > 0 ? (
+              <>
+                <label className="flex items-center gap-2 text-sm text-gray-300">
+                  <input type="radio" checked={mode === "existing"} onChange={() => setMode("existing")} />
+                  Add to existing item
+                </label>
+                {mode === "existing" && (
+                  <select value={qid} onChange={(e) => setQid(e.target.value)} className="w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white">
+                    {matches.map((m) => (
+                      <option key={m.id} value={m.id}>{m.id} — {m.label}{m.description ? ` (${m.description})` : ""}</option>
+                    ))}
+                  </select>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-gray-400">No existing Wikidata item found for “{profile.name}”.</p>
+            )}
+            <label className="flex items-center gap-2 text-sm text-gray-300">
+              <input type="radio" checked={mode === "create"} onChange={() => setMode("create")} />
+              Create a new item
+            </label>
+          </div>
+
+          {mode === "create" && (
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Short description (e.g. 'decentralized exchange on Solana')"
+              className="w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600"
+            />
+          )}
+
+          {/* preview */}
+          <div className="rounded-lg border border-white/5 bg-gray-950/70 p-3">
+            <p className="text-[11px] font-mono uppercase tracking-widest text-gray-500">Will write</p>
+            <ul className="mt-1.5 space-y-0.5 text-xs text-gray-300">
+              {willWrite.length ? willWrite.map((w) => <li key={w}>• {w}</li>) : <li className="text-amber-400/90">Add a website / X handle in My Brands first.</li>}
+            </ul>
+          </div>
+
+          {/* credentials */}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Wikidata bot username (user@botname)" className="rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Bot password" className="rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
+          </div>
+          <p className="text-[11px] text-gray-500">
+            Create one at{" "}
+            <a href="https://www.wikidata.org/wiki/Special:BotPasswords" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">
+              wikidata.org → Special:BotPasswords
+            </a>{" "}
+            (grant &quot;edit existing pages&quot; + &quot;create, edit, and move pages&quot;). Credentials are used once and never stored. Edits are public under your account — only submit facts that are true, and note Wikidata&apos;s notability rules for new items.
+          </p>
+
+          {error && <p className="text-sm text-red-400">Error: {error}</p>}
+          {result && (
+            <p className="text-sm text-emerald-400">
+              {result.created ? "Created" : result.added.length ? "Updated" : "Already up to date"} —{" "}
+              <a href={result.url} target="_blank" rel="noopener noreferrer" className="underline">{result.id}</a>
+              {result.added.length ? ` (added: ${result.added.join(", ")})` : ""}
+            </p>
+          )}
+
+          <button
+            onClick={submit}
+            disabled={submitting || !username || !password || willWrite.length === 0}
+            className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white hover:from-cyan-400 hover:to-violet-400 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting ? "Submitting…" : "Submit to Wikidata"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
