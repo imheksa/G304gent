@@ -113,6 +113,31 @@ export function generateData(brand: string) {
 
 export type BrandData = ReturnType<typeof generateData>;
 
+// Backfills any fields missing from a stored scan. Scans saved before a field
+// was introduced (e.g. `recommendations`) would otherwise be served as-is and
+// crash the dashboard when it reads `.length`/`.map` on an undefined array.
+export function normalizeBrandData(input: unknown, brand: string): BrandData | null {
+  if (!input || typeof input !== "object") return null;
+  const d = input as Partial<BrandData>;
+  const fallback = generateData(brand);
+  return {
+    brandScore: d.brandScore ?? 0,
+    soa: d.soa ?? 0,
+    accuracy: d.accuracy ?? 0,
+    citation: d.citation ?? 0,
+    summaryCards: d.summaryCards ?? fallback.summaryCards,
+    engines: (d.engines ?? fallback.engines).map((e) => ({ ...e, sentiment: e.sentiment ?? 0 })),
+    alerts: d.alerts ?? [],
+    soaTrend: d.soaTrend ?? [],
+    topQueries: d.topQueries ?? [],
+    canonicalFacts: d.canonicalFacts ?? [],
+    recommendations: d.recommendations ?? [],
+    engineResponses: d.engineResponses ?? {},
+    scannedAt: d.scannedAt ?? "",
+    soaHistory: d.soaHistory ?? [],
+  };
+}
+
 // The core assessment an AI engine returns for a brand. The full dashboard
 // shape (summary cards, trend, etc.) is derived from this by assembleBrandData.
 export type EngineName = "ChatGPT" | "Gemini" | "Claude" | "Grok" | "Deepseek" | "Google AI";
