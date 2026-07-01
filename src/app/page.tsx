@@ -9,6 +9,7 @@ import PrimaryCTA from "@/components/PrimaryCTA";
 import { PAYMENTS_ENABLED } from "@/lib/web3-config";
 import { fetchBrandNames } from "@/lib/store";
 import { ChipLogo } from "@/components/Logo";
+import { EngineIcon } from "@/components/EngineIcon";
 
 function HexIcon({ className = "w-5 h-5" }: { className?: string }) {
   return <ChipLogo className={className} />;
@@ -144,7 +145,7 @@ function Hero() {
                   ].map((engine) => (
                     <div key={engine.name} className="flex items-center justify-between rounded-lg border border-white/5 bg-gray-950/40 px-3 py-2">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white/5 font-mono text-[10px] text-gray-400">{engine.icon}</span>
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white/5 text-gray-300"><EngineIcon name={engine.name} className="h-3.5 w-3.5" /></span>
                         <span className="text-xs text-white">{engine.name}</span>
                       </div>
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-mono ${

@@ -93,7 +93,11 @@ export function generateData(brand: string) {
     violations: factStatuses[i] === "accurate" ? 0 : 1 + (s % 2),
   }));
 
-  return { brandScore, soa, accuracy, citation, summaryCards, engines, alerts, soaTrend, topQueries, canonicalFacts };
+  return {
+    brandScore, soa, accuracy, citation, summaryCards, engines, alerts, soaTrend, topQueries, canonicalFacts,
+    // Raw per-engine responses (populated by real AI scans; empty here).
+    engineResponses: {} as Record<string, string>,
+  };
 }
 
 export type BrandData = ReturnType<typeof generateData>;
@@ -124,7 +128,7 @@ const ALERT_TIMES = ["12 min ago", "25 min ago", "1 hr ago", "2 hr ago", "3 hr a
 // Turns a real AI engine's core assessment into the full BrandData the
 // dashboard renders — same shape generateData produces, but grounded in the
 // model's actual response instead of a hash.
-export function assembleBrandData(core: BrandCore): BrandData {
+export function assembleBrandData(core: BrandCore, engineResponses: Record<string, string> = {}): BrandData {
   const { brandScore, soa, accuracy, citation } = core;
   const summaryCards = [
     { label: "Brand Score", value: String(brandScore), change: `+${1 + (brandScore % 8)}`, unit: "/100", color: "text-cyan-400", bg: "bg-cyan-500/10" },
@@ -160,6 +164,7 @@ export function assembleBrandData(core: BrandCore): BrandData {
     summaryCards, engines, alerts, soaTrend,
     topQueries: core.topQueries,
     canonicalFacts: core.canonicalFacts,
+    engineResponses,
   };
 }
 
@@ -299,4 +304,33 @@ export function saveCompetitorProfile(profile: BrandProfile) {
 export function removeCompetitor(name: string) {
   const profiles = getCompetitorProfiles().filter((p) => p.name !== name);
   localStorage.setItem(COMPETITORS_KEY, JSON.stringify(profiles));
+}
+
+// User-defined canonical facts (the "source of truth" a user adds). Stored per
+// brand in localStorage and merged into the dashboard's Canonical Facts.
+export type CanonicalFact = { fact: string; status: "accurate" | "violated" | "missing"; violations: number };
+
+const factsKey = (brand: string) => `g304_facts_${brand}`;
+
+export function getUserFacts(brand: string): CanonicalFact[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(factsKey(brand));
+    return raw ? (JSON.parse(raw) as CanonicalFact[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addUserFact(brand: string, fact: string): CanonicalFact[] {
+  const facts = getUserFacts(brand);
+  facts.push({ fact, status: "missing", violations: 0 });
+  localStorage.setItem(factsKey(brand), JSON.stringify(facts));
+  return facts;
+}
+
+export function removeUserFact(brand: string, fact: string): CanonicalFact[] {
+  const facts = getUserFacts(brand).filter((f) => f.fact !== fact);
+  localStorage.setItem(factsKey(brand), JSON.stringify(facts));
+  return facts;
 }

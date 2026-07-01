@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { generateData, type BrandData } from "@/lib/brand-data";
+import { generateData, getUserFacts, addUserFact, removeUserFact, type BrandData, type CanonicalFact } from "@/lib/brand-data";
 import { fetchBrandNames, fetchScan, requestScan, quickScan, AI_ENABLED } from "@/lib/store";
+import { EngineIcon } from "@/components/EngineIcon";
 
 // Formats a remaining-cooldown duration as a short "Xm" / "Xs" label.
 function minutesUntil(ms: number): string {
@@ -250,7 +251,7 @@ function DashboardInner() {
           {activeTab === "overview" && <OverviewTab data={data} level={level} onLogin={login} />}
           {activeTab === "engines" && canAccess("free") && <EnginesTab data={data} />}
           {activeTab === "alerts" && canAccess("subscribed") && <AlertsTab data={data} />}
-          {activeTab === "facts" && canAccess("subscribed") && <FactsTab data={data} />}
+          {activeTab === "facts" && canAccess("subscribed") && <FactsTab data={data} brand={brand} />}
         </div>
       </div>
     </div>
@@ -320,8 +321,8 @@ function OverviewTab({ data, level, onLogin }: { data: DashData; level: AccessLe
             {engines.map((e) => (
               <div key={e.name} className="flex items-center justify-between rounded-lg border border-white/5 bg-gray-950/50 px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white/5 font-mono text-xs text-gray-400">
-                    {e.icon}
+                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white/5 text-gray-300">
+                    <EngineIcon name={e.name} className="h-4 w-4" />
                   </div>
                   <span className="text-sm text-white">{e.name}</span>
                 </div>
@@ -362,7 +363,7 @@ function OverviewTab({ data, level, onLogin }: { data: DashData; level: AccessLe
         <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
           <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Top Monitored Queries</h3>
           <div className="mt-4 space-y-2">
-            {topQueries.slice(0, 3).map((q) => (
+            {topQueries.slice(0, 6).map((q) => (
               <div key={q.query} className="flex items-center justify-between rounded-lg border border-white/5 bg-gray-950/50 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-white truncate">&quot;{q.query}&quot;</p>
@@ -449,8 +450,8 @@ function EnginesTab({ data }: { data: DashData }) {
         <div key={engine.name} className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 font-mono text-lg text-gray-300">
-                {engine.icon}
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 text-gray-200">
+                <EngineIcon name={engine.name} className="h-6 w-6" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-white">{engine.name}</h3>
@@ -483,7 +484,18 @@ function EnginesTab({ data }: { data: DashData }) {
 }
 
 function AlertsTab({ data }: { data: DashData }) {
-  const { alerts } = data;
+  const [dismissed, setDismissed] = useState<Set<number>>(new Set());
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const alerts = data.alerts.filter((a) => !dismissed.has(a.id));
+
+  const toggle = (setter: React.Dispatch<React.SetStateAction<Set<number>>>, id: number) =>
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-4 mb-6">
@@ -497,37 +509,88 @@ function AlertsTab({ data }: { data: DashData }) {
           <span className="h-2 w-2 rounded-full bg-blue-400" /> Low
         </span>
       </div>
-      {alerts.map((alert) => (
-        <div key={alert.id} className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
-          <div className="flex items-start gap-4">
-            <SeverityDot severity={alert.severity} />
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-white">{alert.issue}</h4>
-                <span className="text-xs text-gray-500">{alert.time}</span>
-              </div>
-              <div className="mt-2 flex items-center gap-3">
-                <span className="rounded-md bg-white/5 px-2 py-0.5 text-xs font-mono text-gray-400">{alert.engine}</span>
-                <span className="text-xs text-gray-500">Query: &quot;{alert.query}&quot;</span>
-              </div>
-              <div className="mt-4 flex gap-2">
-                <button className="rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-1.5 text-xs font-medium text-cyan-400 hover:bg-cyan-500/10 transition-colors">
-                  View Response
-                </button>
-                <button className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-gray-400 hover:bg-white/5 transition-colors">
-                  Dismiss
-                </button>
+      {alerts.length === 0 && (
+        <div className="rounded-xl border border-white/5 bg-gray-900/50 p-8 text-center text-sm text-gray-500">
+          No open alerts — AI engines represent this brand accurately.
+        </div>
+      )}
+      {alerts.map((alert) => {
+        const response = data.engineResponses?.[alert.engine];
+        const isOpen = expanded.has(alert.id);
+        return (
+          <div key={alert.id} className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
+            <div className="flex items-start gap-4">
+              <SeverityDot severity={alert.severity} />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-white">{alert.issue}</h4>
+                  <span className="text-xs text-gray-500">{alert.time}</span>
+                </div>
+                <div className="mt-2 flex items-center gap-3">
+                  <span className="rounded-md bg-white/5 px-2 py-0.5 text-xs font-mono text-gray-400">{alert.engine}</span>
+                  <span className="text-xs text-gray-500">Query: &quot;{alert.query}&quot;</span>
+                </div>
+
+                {isOpen && (
+                  <div className="mt-4 rounded-lg border border-white/5 bg-gray-950/60 p-4">
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-gray-500">
+                      {alert.engine} response
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-gray-300">
+                      {response || "No raw response was captured for this engine on the last scan. Re-scan to refresh."}
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={() => toggle(setExpanded, alert.id)}
+                    className="rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-1.5 text-xs font-medium text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+                  >
+                    {isOpen ? "Hide Response" : "View Response"}
+                  </button>
+                  <button
+                    onClick={() => toggle(setDismissed, alert.id)}
+                    className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-gray-400 hover:bg-white/5 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function FactsTab({ data }: { data: DashData }) {
-  const { canonicalFacts } = data;
+function FactsTab({ data, brand }: { data: DashData; brand: string }) {
+  const [userFacts, setUserFacts] = useState<CanonicalFact[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    setUserFacts(getUserFacts(brand));
+  }, [brand]);
+
+  function submit() {
+    const value = text.trim();
+    if (!value) return;
+    setUserFacts(addUserFact(brand, value));
+    setText("");
+    setAdding(false);
+  }
+
+  const facts: { fact: string; status: string; violations: number; userAdded?: boolean }[] = [
+    ...data.canonicalFacts,
+    ...userFacts.map((f) => ({ ...f, userAdded: true })),
+  ];
+  const total = facts.length;
+  const violations = facts.filter((f) => f.status === "violated").length;
+  const accurate = facts.filter((f) => f.status === "accurate").length;
+  const accuracyRate = total ? Math.round((accurate / total) * 100) : 0;
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
@@ -536,12 +599,35 @@ function FactsTab({ data }: { data: DashData }) {
             <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Canonical Facts</h3>
             <p className="mt-1 text-xs text-gray-400">Your brand&apos;s source of truth — compared against AI responses</p>
           </div>
-          <button className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-4 py-2 text-sm font-medium text-cyan-400 hover:bg-cyan-500/10 transition-colors">
-            + Add Fact
+          <button
+            onClick={() => setAdding((v) => !v)}
+            className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-4 py-2 text-sm font-medium text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+          >
+            {adding ? "Cancel" : "+ Add Fact"}
           </button>
         </div>
+
+        {adding && (
+          <div className="mt-4 flex flex-col gap-2 rounded-lg border border-cyan-500/20 bg-gray-950/50 p-4 sm:flex-row">
+            <input
+              autoFocus
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              placeholder={`e.g. ${brand} is audited by CertiK`}
+              className="flex-1 rounded-lg border border-white/10 bg-gray-900/80 px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-cyan-500/50 focus:outline-none"
+            />
+            <button
+              onClick={submit}
+              className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
+            >
+              Add Fact
+            </button>
+          </div>
+        )}
+
         <div className="mt-6 space-y-2">
-          {canonicalFacts.map((fact) => (
+          {facts.map((fact) => (
             <div key={fact.fact} className="flex items-center justify-between rounded-lg border border-white/5 bg-gray-950/50 px-5 py-4">
               <div className="flex items-center gap-4">
                 <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs ${
@@ -556,30 +642,47 @@ function FactsTab({ data }: { data: DashData }) {
                 <div>
                   <p className="text-sm text-white">{fact.fact}</p>
                   <p className="text-xs text-gray-500">
-                    {fact.status === "accurate" && "All AI engines report this correctly"}
-                    {fact.status === "violated" && `${fact.violations} engine(s) contradict this fact`}
-                    {fact.status === "missing" && `${fact.violations} engine(s) don't mention this`}
+                    {fact.userAdded
+                      ? "Added by you — will be checked on the next scan"
+                      : fact.status === "accurate"
+                      ? "All AI engines report this correctly"
+                      : fact.status === "violated"
+                      ? `${fact.violations} engine(s) contradict this fact`
+                      : `${fact.violations} engine(s) don't mention this`}
                   </p>
                 </div>
               </div>
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-mono capitalize ${
-                fact.status === "accurate"
-                  ? "bg-emerald-500/10 text-emerald-400"
-                  : fact.status === "violated"
-                  ? "bg-red-500/10 text-red-400"
-                  : "bg-amber-500/10 text-amber-400"
-              }`}>
-                {fact.status}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-mono capitalize ${
+                  fact.status === "accurate"
+                    ? "bg-emerald-500/10 text-emerald-400"
+                    : fact.status === "violated"
+                    ? "bg-red-500/10 text-red-400"
+                    : "bg-amber-500/10 text-amber-400"
+                }`}>
+                  {fact.status}
+                </span>
+                {fact.userAdded && (
+                  <button
+                    onClick={() => setUserFacts(removeUserFact(brand, fact.fact))}
+                    className="rounded-md p-1 text-gray-500 hover:bg-white/5 hover:text-red-400 transition-colors"
+                    title="Remove"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Total Facts" value="6" color="text-cyan-400" />
-        <StatCard label="Violations" value="3" color="text-red-400" />
-        <StatCard label="Accuracy Rate" value="50%" color="text-emerald-400" />
+        <StatCard label="Total Facts" value={String(total)} color="text-cyan-400" />
+        <StatCard label="Violations" value={String(violations)} color="text-red-400" />
+        <StatCard label="Accuracy Rate" value={`${accuracyRate}%`} color="text-emerald-400" />
       </div>
     </div>
   );

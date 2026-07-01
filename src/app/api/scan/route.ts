@@ -69,8 +69,8 @@ export async function POST(req: Request) {
 
   let data;
   try {
-    const core = await analyzeBrandVisibility(brand);
-    data = assembleBrandData(core);
+    const { core, responses } = await analyzeBrandVisibility(brand);
+    data = assembleBrandData(core, responses);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "scan_failed" }, { status: 502 });
   }
