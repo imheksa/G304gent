@@ -318,6 +318,7 @@ function DashboardNav() {
           <Link href="/dashboard" className="text-sm text-cyan-400 font-medium">Dashboard</Link>
           <Link href="/brands" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">My Brands</Link>
           <Link href="/compare" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Compare</Link>
+          <Link href="/distribute" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Distribute</Link>
           <Link href="/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</Link>
           <AccountButton />
         </div>
