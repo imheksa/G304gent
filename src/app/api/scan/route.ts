@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserId } from "@/lib/server/auth";
 import { getSupabase, backendConfigured } from "@/lib/server/db";
 import { aiEnabled, analyzeBrandVisibility } from "@/lib/server/ai";
+import { hasFullAccess } from "@/lib/server/access";
 import { assembleBrandData } from "@/lib/brand-data";
 
 export const runtime = "nodejs";
@@ -47,9 +48,12 @@ export async function POST(req: Request) {
 
   const sb = backendConfigured ? getSupabase() : null;
 
+  // Allowlisted (demo/test) wallets are exempt from the hourly cooldown.
+  const fullAccess = await hasFullAccess(a.userId);
+
   // Rate limit: at most one scan per brand per hour. Return the cached scan
   // plus how long until the next one is allowed.
-  if (sb) {
+  if (sb && !fullAccess) {
     const { data: existing } = await sb
       .from("scans")
       .select("data, created_at")
