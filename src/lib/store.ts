@@ -12,6 +12,7 @@ import {
   setUserTier,
   TIER_LABELS,
   generateData,
+  normalizeBrandData,
   type BrandProfile,
   type BrandData,
   type SubscriptionTier,
@@ -124,7 +125,7 @@ export async function activateTierByPayment(
 export async function fetchScan(brand: string): Promise<BrandData | null> {
   if (!AI_ENABLED) return generateData(brand);
   const { data } = await api(`/api/scan?brand=${encodeURIComponent(brand)}`);
-  return (data as BrandData | null) ?? null;
+  return normalizeBrandData(data, brand);
 }
 
 // Runs a fresh AI scan for the brand and returns the assembled dashboard data.
@@ -163,7 +164,7 @@ export async function streamScan(
   });
   if (res.status === 429) {
     const b = await res.json().catch(() => ({}));
-    return { status: "cooldown", data: (b.data as BrandData) ?? null, retryAfterMs: Number(b.retryAfterMs) || 0 };
+    return { status: "cooldown", data: normalizeBrandData(b.data, brand), retryAfterMs: Number(b.retryAfterMs) || 0 };
   }
   if (!res.ok || !res.body) {
     const b = await res.json().catch(() => ({}));
@@ -213,8 +214,8 @@ export async function quickScan(brand: string): Promise<QuickScanResult> {
   });
   const body = await res.json().catch(() => ({}));
   if (res.status === 429) {
-    return { status: "cooldown", data: (body.data as BrandData) ?? null, retryAfterMs: Number(body.retryAfterMs) || 0 };
+    return { status: "cooldown", data: normalizeBrandData(body.data, brand), retryAfterMs: Number(body.retryAfterMs) || 0 };
   }
   if (!res.ok) return { status: "error", message: String(body.error || res.status) };
-  return { status: "ok", data: body.data as BrandData };
+  return { status: "ok", data: normalizeBrandData(body.data, brand) ?? generateData(brand) };
 }
