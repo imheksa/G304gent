@@ -263,6 +263,45 @@ function Solution() {
   );
 }
 
+function Integrations() {
+  return (
+    <section className="relative overflow-hidden bg-gray-950 py-24 border-t border-white/5">
+      <div className="absolute inset-0 bg-grid opacity-40" />
+      <div className="absolute top-1/2 left-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/5 blur-[140px]" />
+      <div className="relative mx-auto max-w-6xl px-6 sm:px-10 lg:px-16 xl:px-24">
+        <div className="grid items-center gap-12 lg:grid-cols-2">
+          <div>
+            <div className="font-mono text-sm uppercase tracking-[3px] text-cyan-400">One integration</div>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+              One agent.<br /><span className="text-gradient">Every AI engine.</span>
+            </h2>
+            <p className="mt-5 max-w-md text-lg leading-relaxed text-gray-400">
+              6304 Agent connects to the six engines people actually ask — ChatGPT, Gemini, Claude,
+              Grok, Deepseek and Google AI — and measures how each one represents your brand, side by side.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-2.5">
+              {["ChatGPT", "Gemini", "Claude", "Grok", "Deepseek", "Google AI"].map((e) => (
+                <span key={e} className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 font-mono text-xs text-gray-300">
+                  <EngineIcon name={e} className="h-3.5 w-3.5" /> {e}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="relative flex justify-center">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-500/10 to-violet-500/10 blur-3xl" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/6304-engines.png"
+              alt="6304 Agent connected to ChatGPT, Gemini, Claude, Grok, Deepseek and Google AI"
+              className="relative w-full max-w-md drop-shadow-2xl"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Metrics() {
   const { t } = useI18n();
   const items = [
@@ -851,6 +890,7 @@ export default function Home() {
       <QuickScan />
       <Problem />
       <Solution />
+      <Integrations />
       <Metrics />
       <Features />
       <Pricing />
