@@ -149,6 +149,8 @@ export type QuickScanResult =
 export type WikidataMatch = { id: string; label: string; description: string; url: string };
 export type WikidataResult = { id: string; url: string; added: string[]; created: boolean };
 
+export type WikidataStatus = { configured: boolean; connected: boolean; username?: string };
+
 // Search Wikidata for an existing item with this name (public, no auth).
 export async function wikidataSearch(name: string): Promise<WikidataMatch[]> {
   const res = await fetch(`/api/distribute/wikidata?name=${encodeURIComponent(name)}`);
@@ -157,17 +159,34 @@ export async function wikidataSearch(name: string): Promise<WikidataMatch[]> {
   return (b.matches as WikidataMatch[]) ?? [];
 }
 
-// Submit the brand's structured identity to Wikidata using the user's bot
-// password. Throws with the server's error message on failure.
+// Whether Wikidata OAuth is configured and the browser is connected.
+export async function wikidataStatus(): Promise<WikidataStatus> {
+  const res = await fetch("/api/distribute/wikidata/status");
+  if (!res.ok) return { configured: false, connected: false };
+  return (await res.json()) as WikidataStatus;
+}
+
+// Disconnect the linked Wikimedia account.
+export async function wikidataDisconnect(): Promise<void> {
+  await fetch("/api/distribute/wikidata/status", { method: "DELETE" });
+}
+
+// Submit the brand's structured identity to Wikidata. Uses the connected OAuth
+// account when available; otherwise falls back to bot-password credentials.
 export async function wikidataSubmit(payload: {
   name: string;
   description?: string;
   website?: string;
   twitter?: string;
+  blog?: string;
+  instagram?: string;
+  whitepaper?: string;
+  instanceOf?: string;
+  inceptionYear?: string;
   mode: "create" | "existing";
   qid?: string;
-  username: string;
-  password: string;
+  username?: string;
+  password?: string;
 }): Promise<WikidataResult> {
   const { result } = await api("/api/distribute/wikidata", {
     method: "POST",
