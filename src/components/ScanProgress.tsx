@@ -5,15 +5,12 @@ import { EngineIcon } from "./EngineIcon";
 
 export type ScanStepStatus = "queued" | "running" | "done";
 
-// The dashboard steps. The six engine steps map 1:1 to the engine names; the
-// last two (facts + judge) follow the judge status.
+// Every engine is measured on the SAME metrics (visibility · accuracy · share),
+// so each engine row uses identical wording. The last two steps (facts + judge)
+// follow the judge status.
+const ENGINES = ["ChatGPT", "Gemini", "Claude", "Grok", "Deepseek", "Google AI"];
 const STEPS: { engine: string | null; label: string }[] = [
-  { engine: "ChatGPT", label: "Checking ChatGPT visibility" },
-  { engine: "Gemini", label: "Measuring Gemini brand share" },
-  { engine: "Claude", label: "Verifying Claude accuracy" },
-  { engine: "Grok", label: "Checking Grok visibility" },
-  { engine: "Deepseek", label: "Auditing Deepseek citations" },
-  { engine: "Google AI", label: "Checking Google AI presence" },
+  ...ENGINES.map((name) => ({ engine: name, label: `Checking ${name} · visibility · accuracy · share` })),
   { engine: null, label: "Cross-checking canonical facts" },
   { engine: null, label: "Scoring with judge model" },
 ];
