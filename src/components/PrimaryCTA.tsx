@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 
 // A primary call-to-action that opens the Privy login ("Continue with Google")
@@ -22,9 +23,9 @@ export default function PrimaryCTA({
 
   if (ready && authenticated) {
     return (
-      <a href={authedHref ?? href} className={className}>
+      <Link href={authedHref ?? href} className={className}>
         {authedChildren ?? children}
-      </a>
+      </Link>
     );
   }
 

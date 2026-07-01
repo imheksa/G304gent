@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { generateData } from "@/lib/brand-data";
@@ -56,16 +57,16 @@ function CompareInner() {
     <div className="min-h-screen bg-gray-950">
       <nav className="border-b border-white/5 bg-gray-950/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 items-center justify-between px-6 sm:px-10 lg:px-16 xl:px-24">
-          <a href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
             <ChipLogo className="w-5 h-5" />
             <span className="text-gradient">6304</span>
             <span className="text-white">&nbsp;Agent</span>
-          </a>
+          </Link>
           <div className="flex items-center gap-6">
-            <a href="/brands" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">My Brands</a>
-            <a href="/compare" className="text-sm text-cyan-400 font-medium">Compare</a>
-            <a href="/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Dashboard</a>
-            <a href="/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</a>
+            <Link href="/brands" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">My Brands</Link>
+            <Link href="/compare" className="text-sm text-cyan-400 font-medium">Compare</Link>
+            <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Dashboard</Link>
+            <Link href="/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Home</Link>
             <AccountButton />
           </div>
         </div>
