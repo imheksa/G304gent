@@ -34,6 +34,7 @@ export function generateData(brand: string) {
     status: i === missingIdx ? "not_found" as const : "mentioned" as const,
     accuracy: i === missingIdx ? 0 : 60 + ((s * (i + 1) * 3) % 35),
     soa: i === missingIdx ? 0 : 15 + ((s * (i + 1) * 7) % 40),
+    sentiment: i === missingIdx ? 0 : 55 + ((s * (i + 1) * 5) % 35),
   }));
 
   const severities = ["high", "high", "medium", "low", "medium"];
@@ -97,6 +98,10 @@ export function generateData(brand: string) {
     brandScore, soa, accuracy, citation, summaryCards, engines, alerts, soaTrend, topQueries, canonicalFacts,
     // Raw per-engine responses (populated by real AI scans; empty here).
     engineResponses: {} as Record<string, string>,
+    // ISO timestamp of the scan (populated by real scans).
+    scannedAt: "",
+    // Real Share-of-Answer / Accuracy history (populated from scan_history).
+    soaHistory: [] as { label: string; soa: number; accuracy: number }[],
   };
 }
 
@@ -111,7 +116,7 @@ export type BrandCore = {
   soa: number;
   accuracy: number;
   citation: number;
-  engines: { name: EngineName; status: "mentioned" | "not_found"; accuracy: number; soa: number }[];
+  engines: { name: EngineName; status: "mentioned" | "not_found"; accuracy: number; soa: number; sentiment: number }[];
   alerts: { severity: "high" | "medium" | "low"; engine: string; query: string; issue: string }[];
   topQueries: { query: string; mentions: number; accuracy: number; trend: "up" | "down" | "stable" }[];
   canonicalFacts: { fact: string; status: "accurate" | "violated" | "missing"; violations: number }[];
@@ -120,29 +125,56 @@ export type BrandCore = {
 const ENGINE_ICONS: Record<string, string> = {
   ChatGPT: "G", Gemini: "Gm", Claude: "C", Grok: "Gr", Deepseek: "D", "Google AI": "GA",
 };
-const ENGINE_TIMES: Record<string, string> = {
-  ChatGPT: "2 min ago", Gemini: "3 min ago", Claude: "4 min ago", Grok: "5 min ago", Deepseek: "6 min ago", "Google AI": "8 min ago",
+
+// Short "x min/hr/days ago" from an ISO timestamp.
+export function relativeTime(iso: string): string {
+  if (!iso) return "just now";
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hr ago`;
+  return `${Math.floor(h / 24)} d ago`;
+}
+
+type AssembleOptions = {
+  engineResponses?: Record<string, string>;
+  scannedAt?: string;
+  // Real Share-of-Answer / Accuracy history (oldest → newest, includes current).
+  soaHistory?: { label: string; soa: number; accuracy: number }[];
+  // Previous scan's headline metrics, for real week-over-week deltas.
+  prev?: { brandScore: number; soa: number; accuracy: number; citation: number };
 };
-const ALERT_TIMES = ["12 min ago", "25 min ago", "1 hr ago", "2 hr ago", "3 hr ago"];
+
+// Formats a real delta vs the previous scan (or "new" when there's no history).
+function delta(current: number, prev?: number): string {
+  if (prev === undefined) return "new";
+  const d = current - prev;
+  return d >= 0 ? `+${d}` : `${d}`;
+}
 
 // Turns a real AI engine's core assessment into the full BrandData the
-// dashboard renders — same shape generateData produces, but grounded in the
-// model's actual response instead of a hash.
-export function assembleBrandData(core: BrandCore, engineResponses: Record<string, string> = {}): BrandData {
+// dashboard renders — grounded in the model's actual responses and real history.
+export function assembleBrandData(core: BrandCore, opts: AssembleOptions = {}): BrandData {
   const { brandScore, soa, accuracy, citation } = core;
+  const { engineResponses = {}, scannedAt = new Date().toISOString(), soaHistory = [], prev } = opts;
+  const lastChecked = relativeTime(scannedAt);
+
   const summaryCards = [
-    { label: "Brand Score", value: String(brandScore), change: `+${1 + (brandScore % 8)}`, unit: "/100", color: "text-cyan-400", bg: "bg-cyan-500/10" },
-    { label: "Share of Answer", value: String(soa), change: `+${1 + (soa % 10)}`, unit: "%", color: "text-violet-400", bg: "bg-violet-500/10" },
-    { label: "Accuracy Score", value: String(accuracy), change: accuracy > 70 ? `+${1 + (accuracy % 4)}` : `-${1 + (accuracy % 5)}`, unit: "%", color: "text-emerald-400", bg: "bg-emerald-500/10" },
-    { label: "Citation Rate", value: String(citation), change: `+${1 + (citation % 6)}`, unit: "%", color: "text-amber-400", bg: "bg-amber-500/10" },
+    { label: "Brand Score", value: String(brandScore), change: delta(brandScore, prev?.brandScore), unit: "/100", color: "text-cyan-400", bg: "bg-cyan-500/10" },
+    { label: "Share of Answer", value: String(soa), change: delta(soa, prev?.soa), unit: "%", color: "text-violet-400", bg: "bg-violet-500/10" },
+    { label: "Accuracy Score", value: String(accuracy), change: delta(accuracy, prev?.accuracy), unit: "%", color: "text-emerald-400", bg: "bg-emerald-500/10" },
+    { label: "Citation Rate", value: String(citation), change: delta(citation, prev?.citation), unit: "%", color: "text-amber-400", bg: "bg-amber-500/10" },
   ];
   const engines = core.engines.map((e) => ({
     name: e.name,
     icon: ENGINE_ICONS[e.name] ?? e.name.slice(0, 2),
-    lastChecked: ENGINE_TIMES[e.name] ?? "recently",
+    lastChecked,
     status: e.status,
     accuracy: e.accuracy,
     soa: e.soa,
+    sentiment: e.sentiment,
   }));
   const alerts = core.alerts.map((a, i) => ({
     id: i + 1,
@@ -150,21 +182,21 @@ export function assembleBrandData(core: BrandCore, engineResponses: Record<strin
     engine: a.engine,
     query: a.query,
     issue: a.issue,
-    time: ALERT_TIMES[i] ?? "today",
+    time: lastChecked,
   }));
-  const base = Math.max(4, soa - 13);
-  const step = (soa - base) / 5;
-  const soaTrend = [0, 1, 2, 3, 4, 5].map((i) => ({
-    week: `W${i + 1}`,
-    you: i === 5 ? soa : Math.round(base + step * i),
-    competitor: 40 - i,
-  }));
+
+  // Trend from real history when available; otherwise a single current point.
+  const history = soaHistory.length ? soaHistory : [{ label: "now", soa, accuracy }];
+  const soaTrend = history.map((h) => ({ week: h.label, you: h.soa, competitor: h.accuracy }));
+
   return {
     brandScore, soa, accuracy, citation,
     summaryCards, engines, alerts, soaTrend,
     topQueries: core.topQueries,
     canonicalFacts: core.canonicalFacts,
     engineResponses,
+    scannedAt,
+    soaHistory: history,
   };
 }
 

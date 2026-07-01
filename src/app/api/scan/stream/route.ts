@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getUserId } from "@/lib/server/auth";
 import { getSupabase, backendConfigured } from "@/lib/server/db";
-import { aiEnabled, analyzeBrandVisibility, type ScanEvent } from "@/lib/server/ai";
+import { aiEnabled, type ScanEvent } from "@/lib/server/ai";
 import { hasFullAccess } from "@/lib/server/access";
-import { assembleBrandData } from "@/lib/brand-data";
+import { runScanAndStore } from "@/lib/server/scan";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -51,16 +51,7 @@ export async function POST(req: Request) {
       const send = (obj: ScanEvent | { type: "done"; data: unknown } | { type: "error"; error: string }) =>
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
       try {
-        const { core, responses } = await analyzeBrandVisibility(brand, (e) => send(e));
-        const data = assembleBrandData(core, responses);
-        if (sb) {
-          await sb
-            .from("scans")
-            .upsert(
-              { user_id: userId, brand_name: brand, engine: "claude", data, created_at: new Date().toISOString() },
-              { onConflict: "user_id,brand_name" }
-            );
-        }
+        const data = await runScanAndStore(userId, brand, (e) => send(e));
         send({ type: "done", data });
       } catch (e) {
         send({ type: "error", error: e instanceof Error ? e.message : "scan_failed" });

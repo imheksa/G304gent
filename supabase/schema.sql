@@ -48,8 +48,23 @@ create table if not exists public.scans (
 );
 create index if not exists scans_user_idx on public.scans (user_id);
 
+-- Append-only history of every scan's headline metrics, so the dashboard can
+-- show a real Share-of-Answer / Accuracy trend over time.
+create table if not exists public.scan_history (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  brand_name text not null,
+  brand_score int not null,
+  soa int not null,
+  accuracy int not null,
+  citation int not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists scan_history_idx on public.scan_history (user_id, brand_name, created_at);
+
 -- Lock down: only the service role (used by the server) may access these.
 alter table public.brands enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.payments enable row level security;
 alter table public.scans enable row level security;
+alter table public.scan_history enable row level security;

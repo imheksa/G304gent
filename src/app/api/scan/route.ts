@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getUserId } from "@/lib/server/auth";
 import { getSupabase, backendConfigured } from "@/lib/server/db";
-import { aiEnabled, analyzeBrandVisibility } from "@/lib/server/ai";
+import { aiEnabled } from "@/lib/server/ai";
 import { hasFullAccess } from "@/lib/server/access";
-import { assembleBrandData } from "@/lib/brand-data";
+import { runScanAndStore } from "@/lib/server/scan";
 
 export const runtime = "nodejs";
 // The scan can take a few seconds — allow more than the default budget.
@@ -71,23 +71,10 @@ export async function POST(req: Request) {
     }
   }
 
-  let data;
   try {
-    const { core, responses } = await analyzeBrandVisibility(brand);
-    data = assembleBrandData(core, responses);
+    const data = await runScanAndStore(a.userId, brand);
+    return NextResponse.json({ data });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "scan_failed" }, { status: 502 });
   }
-
-  if (sb) {
-    const { error } = await sb
-      .from("scans")
-      .upsert(
-        { user_id: a.userId, brand_name: brand, engine: "claude", data, created_at: new Date().toISOString() },
-        { onConflict: "user_id,brand_name" }
-      );
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ data });
 }

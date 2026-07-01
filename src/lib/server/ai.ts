@@ -73,10 +73,21 @@ const QUERY_PLAN_SCHEMA = {
   },
 } as const;
 
+// The brand's identity, used to disambiguate it from same-named entities.
+export type BrandContext = { website?: string; twitter?: string };
+
+function identityLine(brand: string, ctx?: BrandContext): string {
+  const bits: string[] = [];
+  if (ctx?.website) bits.push(`website ${ctx.website}`);
+  if (ctx?.twitter) bits.push(`X/Twitter ${ctx.twitter}`);
+  return bits.length ? `${brand} (identified by ${bits.join(", ")})` : brand;
+}
+
 // Builds a mixed query battery per brand: 5 direct (name the brand) + 5 indirect
 // (category questions that don't name it — testing unprompted mention). Generated
 // dynamically so it works for any brand or competitor. Falls back to templates.
-async function planQueries(brand: string): Promise<{ direct: string[]; indirect: string[] }> {
+async function planQueries(brand: string, ctx?: BrandContext): Promise<{ direct: string[]; indirect: string[] }> {
+  const identity = identityLine(brand, ctx);
   try {
     const content = await callOpenRouter(
       {
@@ -85,9 +96,9 @@ async function planQueries(brand: string): Promise<{ direct: string[]; indirect:
         messages: [
           {
             role: "user",
-            content: `Generate Generative-Engine-Optimization test queries for the Web3 project "${brand}". Return JSON with two arrays of natural user search questions:
+            content: `Generate Generative-Engine-Optimization test queries for the Web3 project ${identity}. Return JSON with two arrays of natural user search questions:
 - "direct": exactly 5 questions that explicitly name ${brand} (e.g. "What is ${brand}?", "Is ${brand} safe?", "What are ${brand}'s fees?").
-- "indirect": exactly 5 questions about ${brand}'s category/use-case that do NOT mention ${brand} by name, but for which ${brand} would be a relevant answer. Infer the category (e.g. for a fast L1 blockchain: "What is the fastest blockchain?"; for a DEX: "What's the best decentralized exchange?"; for a lending protocol: "Where can I earn yield on stablecoins?").`,
+- "indirect": exactly 5 questions about ${brand}'s category/use-case that do NOT mention ${brand} by name, but for which ${brand} would be a relevant answer. Infer the category from the identity above (e.g. for a fast L1 blockchain: "What is the fastest blockchain?"; for a DEX: "What's the best decentralized exchange?"; for a lending protocol: "Where can I earn yield on stablecoins?").`,
           },
         ],
         response_format: {
@@ -156,12 +167,13 @@ const JUDGE_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "status", "accuracy", "soa"],
+        required: ["name", "status", "accuracy", "soa", "sentiment"],
         properties: {
           name: { type: "string", enum: ENGINES },
           status: { type: "string", enum: ["mentioned", "not_found"] },
           accuracy: { type: "integer" },
           soa: { type: "integer" },
+          sentiment: { type: "integer", description: "How positive the engine's portrayal is, 0-100" },
         },
       },
     },
@@ -215,6 +227,8 @@ You are given the actual responses several AI engines gave about a Web3 project.
 - status "mentioned" if the engine gave substantive, on-topic information; "not_found" if it didn't recognize the project or gave nothing useful.
 - accuracy 0-100: are the facts (fees, audits, custody, tokenomics, launch year, TVL) correct and current.
 - soa 0-100: how prominent/complete the project is in that engine's answer.
+- sentiment 0-100: how positive/favorable the engine's portrayal of the project is (50 = neutral).
+Only treat mentions as the SAME project when they match the given identity (website/category); ignore unrelated same-named entities.
 The engines were asked a mix of DIRECT queries (that name the project) and INDIRECT queries (category questions that don't). The most important visibility signal is whether the engine surfaces the project UNPROMPTED on indirect queries — weight Share of Answer and Brand Score heavily on that, not just on direct answers.
 Then give overall brandScore, share of answer (soa), accuracy, and citation (how often engines cite it as a source). List concrete misinformation as alerts, use the 10 asked questions as topQueries (mark whether the project appeared), and key project facts with whether engines represent them correctly as canonicalFacts. Base everything on the provided responses. Output only the structured fields.`;
 
@@ -235,6 +249,7 @@ function normalize(raw: BrandCore, brand: string, failed: Set<EngineName>): Bran
       status: (found ? "mentioned" : "not_found") as "mentioned" | "not_found",
       accuracy: found ? clamp(e?.accuracy) : 0,
       soa: found ? clamp(e?.soa) : 0,
+      sentiment: found ? clamp(e?.sentiment) : 0,
     };
   });
   const alerts = (raw.alerts ?? []).slice(0, 5).map((a) => ({
@@ -277,12 +292,13 @@ export type ScanEvent =
 // onEvent (optional) receives per-engine progress for streaming scans.
 export async function analyzeBrandVisibility(
   brand: string,
-  onEvent: (e: ScanEvent) => void = () => {}
+  onEvent: (e: ScanEvent) => void = () => {},
+  ctx?: BrandContext
 ): Promise<{ core: BrandCore; responses: Record<string, string> }> {
   const models = engineModels();
 
   // 0. Plan a mixed query battery (5 direct + 5 indirect) for this brand.
-  const plan = await planQueries(brand);
+  const plan = await planQueries(brand, ctx);
   const queries = [...plan.direct, ...plan.indirect];
 
   // 1. Query all engines in parallel with the full query battery, emitting a
@@ -322,7 +338,7 @@ export async function analyzeBrandVisibility(
         { role: "system", content: JUDGE_SYSTEM },
         {
           role: "user",
-          content: `Project: "${brand}"\n\nThe engines were each asked these 10 questions:\n${queryContext}\n\nHere is what each AI engine answered (all 10 in order):\n\n${transcript}\n\nScore each engine and the project overall. For INDIRECT queries, only count the project as present/visible if the engine named it without being prompted — that is the key visibility signal. Use these 10 queries as the topQueries.`,
+          content: `Project: ${identityLine(brand, ctx)}\n\nIMPORTANT — identity check: only count an engine's answer as being about THIS project if it clearly refers to the same entity (matching website/category above). If an engine discusses a different entity that merely shares the name, treat the project as NOT present for that item.\n\nThe engines were each asked these 10 questions:\n${queryContext}\n\nHere is what each AI engine answered (all 10 in order):\n\n${transcript}\n\nScore each engine and the project overall. For INDIRECT queries, only count the project as present/visible if the engine named it (as this exact entity) without being prompted — that is the key visibility signal. Use these 10 queries as the topQueries.`,
         },
       ],
       response_format: {
