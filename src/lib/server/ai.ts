@@ -63,17 +63,34 @@ async function callOpenRouter(
   }
 }
 
-// Ask one engine what it knows about the brand. Returns null if the call fails
-// (the engine is then treated as "not_found").
-async function queryEngine(brand: string, model: string): Promise<string | null> {
+// The battery of real user queries every engine is probed with per scan.
+function queriesFor(brand: string): string[] {
+  return [
+    `What is ${brand} and what does it do?`,
+    `Is ${brand} safe, and has it been audited?`,
+    `What are ${brand}'s fees?`,
+    `What is ${brand}'s tokenomics and token supply?`,
+    `What technology or consensus mechanism does ${brand} use?`,
+    `What are the best alternatives to ${brand}?`,
+    `Has ${brand} had any hacks, outages, or security incidents?`,
+    `Who created ${brand} and when did it launch?`,
+    `What is ${brand}'s total value locked or market position?`,
+    `Should I use ${brand} in 2025 — what are the pros and cons?`,
+  ];
+}
+
+// Ask one engine the full battery of queries in a single call. Returns null if
+// the call fails (the engine is then treated as "not_found").
+async function queryEngine(brand: string, model: string, queries: string[]): Promise<string | null> {
+  const list = queries.map((q, i) => `${i + 1}. ${q}`).join("\n");
   try {
     return await callOpenRouter({
       model,
-      max_tokens: 400,
+      max_tokens: 900,
       messages: [
         {
           role: "user",
-          content: `What do you know about the Web3 project "${brand}"? Briefly cover what it is, its category, trading/fees, security and audits, and tokenomics. If you are not familiar with it, say so plainly. Keep it under 180 words.`,
+          content: `Answer each of these questions about the Web3 project "${brand}" briefly (1-2 sentences each). If you are unsure or don't recognize it, say so for that item.\n\n${list}`,
         },
       ],
     });
@@ -121,6 +138,7 @@ const JUDGE_SCHEMA = {
     },
     topQueries: {
       type: "array",
+      description: "8-10 representative user queries about the brand (one per query the engines were asked)",
       items: {
         type: "object",
         additionalProperties: false,
@@ -181,7 +199,7 @@ function normalize(raw: BrandCore, brand: string, failed: Set<EngineName>): Bran
     query: String(a.query || brand),
     issue: String(a.issue || `Inaccurate information about ${brand}`),
   }));
-  const topQueries = (raw.topQueries ?? []).slice(0, 3).map((q) => ({
+  const topQueries = (raw.topQueries ?? []).slice(0, 10).map((q) => ({
     query: String(q.query || brand),
     mentions: clamp(q.mentions, 0, 999),
     accuracy: clamp(q.accuracy),
@@ -204,15 +222,21 @@ function normalize(raw: BrandCore, brand: string, failed: Set<EngineName>): Bran
   };
 }
 
-// Queries every engine for real, then has the judge score the answers.
-export async function analyzeBrandVisibility(brand: string): Promise<BrandCore> {
+// Queries every engine for real, then has the judge score the answers. Also
+// returns the raw engine responses so the UI can show them ("View Response").
+export async function analyzeBrandVisibility(
+  brand: string
+): Promise<{ core: BrandCore; responses: Record<string, string> }> {
   const models = engineModels();
+  const queries = queriesFor(brand);
 
-  // 1. Query all engines in parallel.
+  // 1. Query all engines in parallel with the full query battery.
   const answers = await Promise.all(
-    ENGINES.map(async (name) => ({ name, text: await queryEngine(brand, models[name]) }))
+    ENGINES.map(async (name) => ({ name, text: await queryEngine(brand, models[name], queries) }))
   );
   const failed = new Set<EngineName>(answers.filter((a) => !a.text).map((a) => a.name));
+  const responses: Record<string, string> = {};
+  for (const a of answers) if (a.text) responses[a.name] = a.text.trim();
 
   // 2. Judge scores every engine's answer.
   const transcript = answers
@@ -239,5 +263,5 @@ export async function analyzeBrandVisibility(brand: string): Promise<BrandCore> 
   );
 
   const parsed = JSON.parse(content) as BrandCore;
-  return normalize(parsed, brand, failed);
+  return { core: normalize(parsed, brand, failed), responses };
 }
