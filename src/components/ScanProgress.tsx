@@ -85,34 +85,45 @@ export function ScanProgress({
     return "queued";
   };
 
+  const doneCount = ENGINES.filter((_, ei) => engState(ei) === "done").length;
+
   return (
-    <div className="mx-auto w-full max-w-md">
-      <p className="mb-4 text-center text-sm text-gray-400">
-        Scanning <span className="text-gray-200">{brand}</span> across AI engines…
-      </p>
-      <div className="space-y-2.5">
+    <div className="w-full">
+      <div className="mb-5 flex flex-col items-center gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div className="text-center sm:text-left">
+          <p className="font-mono text-xs uppercase tracking-widest text-cyan-400">Quick Scan</p>
+          <h3 className="mt-1 text-lg font-semibold text-white">
+            Scanning <span className="text-cyan-300">{brand}</span> across AI engines…
+          </h3>
+        </div>
+        <span className="font-mono text-xs text-gray-400">
+          {doneCount}/{ENGINES.length} engines complete
+        </span>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {ENGINES.map((name, ei) => {
           const st = engState(ei);
           return (
             <div
               key={name}
-              className={`rounded-xl border px-4 py-3 transition-colors ${
+              className={`rounded-xl border p-5 transition-colors ${
                 st === "done"
                   ? "border-emerald-500/15 bg-emerald-500/5"
                   : st === "running"
-                  ? "border-cyan-500/20 bg-gray-900/60"
+                  ? "border-cyan-500/25 bg-gray-900/60 ring-1 ring-cyan-500/10"
                   : "border-white/5 bg-gray-900/40"
               }`}
             >
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-3">
                 <span
-                  className={`flex h-6 w-6 items-center justify-center ${
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 ${
                     st === "queued" ? "text-gray-600" : "text-gray-200"
                   }`}
                 >
-                  <EngineIcon name={name} className="h-4 w-4" />
+                  <EngineIcon name={name} className="h-5 w-5" />
                 </span>
-                <span className="flex-1 text-sm font-medium text-white">{name}</span>
+                <span className="flex-1 text-sm font-semibold text-white">{name}</span>
                 <span
                   className={`font-mono text-[11px] ${
                     st === "done" ? "text-emerald-400" : st === "running" ? "text-cyan-400" : "text-gray-600"
@@ -121,19 +132,19 @@ export function ScanProgress({
                   {st === "done" ? "complete ✓" : st === "running" ? "scanning…" : "queued"}
                 </span>
               </div>
-              <div className="mt-2.5 space-y-1.5">
+              <div className="mt-4 space-y-2.5">
                 {METRICS.map((m, mi) => {
                   const p = Math.round(bars[ei][mi]);
                   return (
-                    <div key={m.label} className="flex items-center gap-2">
-                      <span className="w-16 shrink-0 text-[11px] text-gray-500">{m.label}</span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-800">
+                    <div key={m.label} className="flex items-center gap-3">
+                      <span className="w-16 shrink-0 text-xs text-gray-500">{m.label}</span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-800">
                         <div
-                          className={`h-1.5 rounded-full bg-gradient-to-r ${m.bar} transition-all duration-150`}
+                          className={`h-2 rounded-full bg-gradient-to-r ${m.bar} transition-all duration-150`}
                           style={{ width: `${p}%` }}
                         />
                       </div>
-                      <span className="w-9 shrink-0 text-right font-mono text-[11px] text-gray-400">{p}%</span>
+                      <span className="w-9 shrink-0 text-right font-mono text-xs text-gray-400">{p}%</span>
                     </div>
                   );
                 })}
@@ -141,29 +152,29 @@ export function ScanProgress({
             </div>
           );
         })}
+      </div>
 
-        {/* Judge / scoring */}
-        <div
-          className={`rounded-xl border px-4 py-3 transition-colors ${
-            judge >= 100 ? "border-emerald-500/15 bg-emerald-500/5" : judge > 0 ? "border-cyan-500/20 bg-gray-900/60" : "border-white/5 bg-gray-900/40"
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            <span className={`flex h-6 w-6 items-center justify-center ${judge > 0 ? "text-cyan-300" : "text-gray-600"}`}>
-              <span className="h-2 w-2 rounded-full bg-current" />
-            </span>
-            <span className="flex-1 text-sm font-medium text-white">Scoring with judge model</span>
-            <span className={`font-mono text-[11px] ${judge >= 100 ? "text-emerald-400" : judge > 0 ? "text-cyan-400" : "text-gray-600"}`}>
-              {judge >= 100 ? "complete ✓" : judge > 0 ? "scoring…" : "queued"}
-            </span>
+      {/* Judge / scoring — full width */}
+      <div
+        className={`mt-4 rounded-xl border p-5 transition-colors ${
+          judge >= 100 ? "border-emerald-500/15 bg-emerald-500/5" : judge > 0 ? "border-cyan-500/25 bg-gray-900/60 ring-1 ring-cyan-500/10" : "border-white/5 bg-gray-900/40"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <span className={`flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 ${judge > 0 ? "text-cyan-300" : "text-gray-600"}`}>
+            <span className="h-2.5 w-2.5 rounded-full bg-current" />
+          </span>
+          <span className="flex-1 text-sm font-semibold text-white">Scoring with judge model</span>
+          <span className={`font-mono text-[11px] ${judge >= 100 ? "text-emerald-400" : judge > 0 ? "text-cyan-400" : "text-gray-600"}`}>
+            {judge >= 100 ? "complete ✓" : judge > 0 ? "scoring…" : "queued"}
+          </span>
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <span className="w-16 shrink-0 text-xs text-gray-500">Overall</span>
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-800">
+            <div className="h-2 rounded-full bg-gradient-to-r from-cyan-500 to-violet-500 transition-all duration-150" style={{ width: `${Math.round(judge)}%` }} />
           </div>
-          <div className="mt-2.5 flex items-center gap-2">
-            <span className="w-16 shrink-0 text-[11px] text-gray-500">Overall</span>
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-800">
-              <div className="h-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-violet-500 transition-all duration-150" style={{ width: `${Math.round(judge)}%` }} />
-            </div>
-            <span className="w-9 shrink-0 text-right font-mono text-[11px] text-gray-400">{Math.round(judge)}%</span>
-          </div>
+          <span className="w-9 shrink-0 text-right font-mono text-xs text-gray-400">{Math.round(judge)}%</span>
         </div>
       </div>
     </div>

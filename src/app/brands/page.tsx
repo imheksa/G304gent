@@ -413,8 +413,7 @@ function BrandCard({ profile, deleteConfirm, onEdit, onDelete, onDeleteConfirm, 
       {scanning && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
-          <div className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-gray-900 p-6 shadow-2xl">
-            <p className="mb-1 text-center text-xs font-mono uppercase tracking-widest text-cyan-400">Quick Scan</p>
+          <div className="relative max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/10 bg-gray-900 p-6 shadow-2xl sm:p-8">
             <ScanProgress brand={profile.name} engineStatus={engStatus} judgeStatus={judgeStatus} />
           </div>
         </div>
