@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { PRIVY_ENABLED } from "@/lib/web3-config";
 import { ChipLogo } from "@/components/Logo";
@@ -39,11 +40,11 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
       <div className="relative w-full max-w-md px-6">
         <div className="rounded-2xl border border-white/5 bg-gray-900/50 p-10 backdrop-blur-xl">
           <div className="text-center">
-            <a href="/" className="inline-flex items-center gap-2 text-2xl font-bold tracking-tight">
+            <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold tracking-tight">
               <ChipLogo className="w-7 h-7" />
               <span className="text-gradient">6304</span>
               <span className="text-white">&nbsp;Agent</span>
-            </a>
+            </Link>
             <h1 className="mt-6 text-xl font-semibold text-white">Sign in to continue</h1>
             <p className="mt-2 text-sm text-gray-400">Log in to access your AI Visibility Dashboard</p>
           </div>

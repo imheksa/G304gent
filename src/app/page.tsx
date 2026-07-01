@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useI18n } from "@/i18n/context";
 import AccountButton from "@/components/AccountButton";
@@ -38,19 +39,19 @@ function Navbar() {
             {t.nav.contact}
           </a>
           <AccountButton />
-          <a
+          <Link
             href="/dashboard"
             className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
           >
             Live Dashboard
-          </a>
+          </Link>
         </div>
-        <a
+        <Link
           href="/dashboard"
           className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white md:hidden"
         >
           Live Dashboard
-        </a>
+        </Link>
       </div>
     </nav>
   );
