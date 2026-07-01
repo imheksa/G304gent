@@ -73,14 +73,37 @@ const QUERY_PLAN_SCHEMA = {
   },
 } as const;
 
-// The brand's identity, used to disambiguate it from same-named entities.
-export type BrandContext = { website?: string; twitter?: string };
+// The brand's identity — its real, user-provided official channels. Used both to
+// disambiguate it from same-named entities and as the reference "Entity Card"
+// the judge verifies each engine's answer against.
+export type BrandContext = {
+  website?: string;
+  twitter?: string;
+  blog?: string;
+  instagram?: string;
+  linkedin?: string;
+};
 
+// One-line identity for prompts that just need to name the entity unambiguously.
 function identityLine(brand: string, ctx?: BrandContext): string {
   const bits: string[] = [];
   if (ctx?.website) bits.push(`website ${ctx.website}`);
   if (ctx?.twitter) bits.push(`X/Twitter ${ctx.twitter}`);
   return bits.length ? `${brand} (identified by ${bits.join(", ")})` : brand;
+}
+
+// The "Entity Card": the full set of official channels that define THIS entity.
+// The judge compares what each engine described against this to catch same-named
+// but different entities (attribute-based verification, not just name matching).
+function entityCard(brand: string, ctx?: BrandContext): string {
+  const rows: string[] = [];
+  if (ctx?.website) rows.push(`- Official website: ${ctx.website}`);
+  if (ctx?.twitter) rows.push(`- Official X/Twitter: ${ctx.twitter}`);
+  if (ctx?.blog) rows.push(`- Blog: ${ctx.blog}`);
+  if (ctx?.instagram) rows.push(`- Instagram: ${ctx.instagram}`);
+  if (ctx?.linkedin) rows.push(`- LinkedIn: ${ctx.linkedin}`);
+  if (!rows.length) return `Entity Card for "${brand}": no official channels provided — identify it as best you can from context.`;
+  return `Entity Card — the ONLY entity named "${brand}" we care about is the one whose official channels are:\n${rows.join("\n")}\nInfer its real category/chain/product from these channels.`;
 }
 
 // Builds a mixed query battery per brand: 3 direct (name the brand) + 7 indirect
@@ -171,13 +194,22 @@ const JUDGE_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "status", "accuracy", "soa", "sentiment"],
+        required: ["name", "status", "accuracy", "soa", "sentiment", "entityMatch", "describedAs"],
         properties: {
           name: { type: "string", enum: ENGINES },
           status: { type: "string", enum: ["mentioned", "not_found"] },
           accuracy: { type: "integer" },
           soa: { type: "integer" },
           sentiment: { type: "integer", description: "How positive the engine's portrayal is, 0-100" },
+          entityMatch: {
+            type: "string",
+            enum: ["match", "mismatch", "unknown"],
+            description: "Does the entity this engine described match the Entity Card? 'match' = same project (channels/category align). 'mismatch' = a DIFFERENT entity that merely shares the name. 'unknown' = engine gave nothing identifiable.",
+          },
+          describedAs: {
+            type: "string",
+            description: "One short phrase for the entity the engine actually described (e.g. 'a Solana DEX', 'the Roman god', 'no recognizable entity'). Used to explain mismatches.",
+          },
         },
       },
     },
@@ -245,7 +277,7 @@ You are given the actual responses several AI engines gave about a Web3 project.
 - accuracy 0-100: are the facts (fees, audits, custody, tokenomics, launch year, TVL) correct and current.
 - soa 0-100: how prominent/complete the project is in that engine's answer.
 - sentiment 0-100: how positive/favorable the engine's portrayal of the project is (50 = neutral).
-Only treat mentions as the SAME project when they match the given identity (website/category); ignore unrelated same-named entities.
+ENTITY VERIFICATION (do this first, per engine): you are given an Entity Card listing the project's official channels. For each engine, extract WHICH entity it actually described and set entityMatch: "match" only if that entity is clearly the same one as the Entity Card (its described category/product/links align with the official channels); "mismatch" if the engine described a DIFFERENT entity that merely shares the name (e.g. a same-named person, place, token, or company); "unknown" if it gave nothing identifiable. Put a short label of what it described in describedAs. Treat an engine as "mentioned" ONLY when entityMatch is "match" — a "mismatch" means the project was NOT found (status not_found, all its scores 0), because that engine was talking about something else.
 BE HONEST — DO NOT INFLATE. The identity details (website, socials, category) are provided ONLY to disambiguate the project from same-named entities. They are NOT evidence that the project is well-known and must NEVER raise the scores. Score strictly on what the engines ACTUALLY said. If an engine did not surface the project, its scores for that engine are 0 — no matter how detailed the provided identity is.
 The engines were asked a mix of DIRECT queries (that name the project) and INDIRECT queries (category "best/top" questions that don't). The most important visibility signal is whether the engine surfaces the project UNPROMPTED on indirect queries. If the project genuinely would not be a top answer to an indirect query and the engine didn't name it, that item is a real zero for Share of Answer — report it as zero, do not give partial credit. A low or zero score is the correct, useful output when the project simply isn't visible.
 Then give overall brandScore, share of answer (soa), accuracy, and citation (how often engines cite it as a source). List concrete misinformation as alerts, use the 10 asked questions as topQueries (mark whether the project appeared), and key project facts with whether engines represent them correctly as canonicalFacts. Finally, given the observed gaps (especially indirect queries where the project was absent), produce recommendations: concrete, prioritized GEO actions to improve real visibility — this is how the user improves a low score honestly rather than by inflating it. Base everything on the provided responses. Output only the structured fields.`;
@@ -255,13 +287,24 @@ function clamp(n: unknown, lo = 0, hi = 100): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
+// The judge's raw output carries a couple of extra per-engine fields (entity
+// verification) that don't live on BrandCore — they're consumed here, not stored.
+type RawEngine = BrandCore["engines"][number] & {
+  entityMatch?: "match" | "mismatch" | "unknown";
+  describedAs?: string;
+};
+type RawJudge = Omit<BrandCore, "engines"> & { engines: RawEngine[] };
+
 // Coerce the judge output into a safe, complete BrandCore. Engines that failed
-// to respond are forced to "not_found" regardless of what the judge guessed.
-function normalize(raw: BrandCore, brand: string, failed: Set<EngineName>): BrandCore {
+// to respond — or that described a DIFFERENT same-named entity (entityMatch
+// "mismatch") — are forced to "not_found" with zero scores, and each mismatch
+// becomes a high-severity alert so the user sees why it wasn't counted.
+function normalize(raw: RawJudge, brand: string, failed: Set<EngineName>): BrandCore {
   const byName = new Map((raw.engines ?? []).map((e) => [e.name, e]));
   const engines = ENGINES.map((name) => {
     const e = byName.get(name);
-    const found = !failed.has(name) && e?.status !== "not_found";
+    const mismatch = e?.entityMatch === "mismatch";
+    const found = !failed.has(name) && e?.status !== "not_found" && !mismatch;
     return {
       name,
       status: (found ? "mentioned" : "not_found") as "mentioned" | "not_found",
@@ -270,12 +313,24 @@ function normalize(raw: BrandCore, brand: string, failed: Set<EngineName>): Bran
       sentiment: found ? clamp(e?.sentiment) : 0,
     };
   });
-  const alerts = (raw.alerts ?? []).slice(0, 5).map((a) => ({
-    severity: (["high", "medium", "low"].includes(a.severity) ? a.severity : "medium") as "high" | "medium" | "low",
-    engine: String(a.engine || "ChatGPT"),
-    query: String(a.query || brand),
-    issue: String(a.issue || `Inaccurate information about ${brand}`),
-  }));
+  // Surface same-name collisions as alerts (the honest "why it's zero" signal).
+  const mismatchAlerts = ENGINES.map((name) => byName.get(name))
+    .filter((e): e is RawEngine => e?.entityMatch === "mismatch")
+    .map((e) => ({
+      severity: "high" as const,
+      engine: String(e.name),
+      query: brand,
+      issue: `Described a different entity sharing the name${e.describedAs ? ` (${e.describedAs})` : ""} — not your project, so counted as not found.`,
+    }));
+  const alerts = [
+    ...mismatchAlerts,
+    ...(raw.alerts ?? []).map((a) => ({
+      severity: (["high", "medium", "low"].includes(a.severity) ? a.severity : "medium") as "high" | "medium" | "low",
+      engine: String(a.engine || "ChatGPT"),
+      query: String(a.query || brand),
+      issue: String(a.issue || `Inaccurate information about ${brand}`),
+    })),
+  ].slice(0, 6);
   const topQueries = (raw.topQueries ?? []).slice(0, 10).map((q) => ({
     query: String(q.query || brand),
     mentions: clamp(q.mentions, 0, 999),
@@ -361,7 +416,7 @@ export async function analyzeBrandVisibility(
         { role: "system", content: JUDGE_SYSTEM },
         {
           role: "user",
-          content: `Project: ${identityLine(brand, ctx)}\n\nIMPORTANT — identity check: only count an engine's answer as being about THIS project if it clearly refers to the same entity (matching website/category above). If an engine discusses a different entity that merely shares the name, treat the project as NOT present for that item.\n\nThe engines were each asked these 10 questions:\n${queryContext}\n\nHere is what each AI engine answered (all 10 in order):\n\n${transcript}\n\nScore each engine and the project overall. For INDIRECT queries, only count the project as present/visible if the engine named it (as this exact entity) without being prompted — that is the key visibility signal. Use these 10 queries as the topQueries.`,
+          content: `Project: ${identityLine(brand, ctx)}\n\n${entityCard(brand, ctx)}\n\nSTEP 1 — verify the entity per engine: set entityMatch (match / mismatch / unknown) and describedAs for each engine by comparing what it described against the Entity Card above. A "mismatch" (a different entity that merely shares the name) counts as NOT found for that engine — zero its scores.\n\nThe engines were each asked these 10 questions:\n${queryContext}\n\nHere is what each AI engine answered (all 10 in order):\n\n${transcript}\n\nSTEP 2 — score each engine and the project overall, counting only "match" engines as mentioned. For INDIRECT queries, only count the project as present/visible if the engine named this exact entity unprompted — that is the key visibility signal. Use these 10 queries as the topQueries.`,
         },
       ],
       response_format: {
@@ -372,6 +427,6 @@ export async function analyzeBrandVisibility(
     45000
   );
 
-  const parsed = JSON.parse(content) as BrandCore;
+  const parsed = JSON.parse(content) as RawJudge;
   return { core: normalize(parsed, brand, failed), responses };
 }

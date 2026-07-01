@@ -30,12 +30,19 @@ export async function runScanAndStore(
   let ctx: BrandContext | undefined;
   const { data: prof } = await sb
     .from("brands")
-    .select("website, twitter")
+    .select("website, twitter, blog, instagram, linkedin")
     .eq("user_id", userId)
     .eq("name", brand)
     .limit(1)
     .maybeSingle();
-  if (prof) ctx = { website: prof.website || undefined, twitter: prof.twitter || undefined };
+  if (prof)
+    ctx = {
+      website: prof.website || undefined,
+      twitter: prof.twitter || undefined,
+      blog: prof.blog || undefined,
+      instagram: prof.instagram || undefined,
+      linkedin: prof.linkedin || undefined,
+    };
 
   const { core, responses } = await analyzeBrandVisibility(brand, onEvent, ctx);
 
