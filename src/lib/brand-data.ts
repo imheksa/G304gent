@@ -94,8 +94,14 @@ export function generateData(brand: string) {
     violations: factStatuses[i] === "accurate" ? 0 : 1 + (s % 2),
   }));
 
+  const recommendations: { action: string; priority: "high" | "medium" | "low" }[] = [
+    { action: `Publish a "best ${brand.toLowerCase()} alternatives" comparison page — you appear on only ${1 + (s % 3)} of 6 engines for that category query.`, priority: "high" },
+    { action: `Add a clear, machine-readable facts page (fees, audits, tokenomics) so engines stop citing outdated ${brand} numbers.`, priority: "high" },
+    { action: `Earn mentions on high-authority Web3 directories and docs to raise ${brand}'s citation rate.`, priority: "medium" },
+  ];
+
   return {
-    brandScore, soa, accuracy, citation, summaryCards, engines, alerts, soaTrend, topQueries, canonicalFacts,
+    brandScore, soa, accuracy, citation, summaryCards, engines, alerts, soaTrend, topQueries, canonicalFacts, recommendations,
     // Raw per-engine responses (populated by real AI scans; empty here).
     engineResponses: {} as Record<string, string>,
     // ISO timestamp of the scan (populated by real scans).
@@ -120,6 +126,7 @@ export type BrandCore = {
   alerts: { severity: "high" | "medium" | "low"; engine: string; query: string; issue: string }[];
   topQueries: { query: string; mentions: number; accuracy: number; trend: "up" | "down" | "stable" }[];
   canonicalFacts: { fact: string; status: "accurate" | "violated" | "missing"; violations: number }[];
+  recommendations: { action: string; priority: "high" | "medium" | "low" }[];
 };
 
 const ENGINE_ICONS: Record<string, string> = {
@@ -194,6 +201,7 @@ export function assembleBrandData(core: BrandCore, opts: AssembleOptions = {}): 
     summaryCards, engines, alerts, soaTrend,
     topQueries: core.topQueries,
     canonicalFacts: core.canonicalFacts,
+    recommendations: core.recommendations,
     engineResponses,
     scannedAt,
     soaHistory: history,

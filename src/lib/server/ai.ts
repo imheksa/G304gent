@@ -68,8 +68,8 @@ const QUERY_PLAN_SCHEMA = {
   additionalProperties: false,
   required: ["direct", "indirect"],
   properties: {
-    direct: { type: "array", description: "5 questions that explicitly name the project", items: { type: "string" } },
-    indirect: { type: "array", description: "5 category questions that do NOT name the project", items: { type: "string" } },
+    direct: { type: "array", description: "3 questions that explicitly name the project", items: { type: "string" } },
+    indirect: { type: "array", description: "7 category questions that do NOT name the project", items: { type: "string" } },
   },
 } as const;
 
@@ -83,9 +83,13 @@ function identityLine(brand: string, ctx?: BrandContext): string {
   return bits.length ? `${brand} (identified by ${bits.join(", ")})` : brand;
 }
 
-// Builds a mixed query battery per brand: 5 direct (name the brand) + 5 indirect
+// Builds a mixed query battery per brand: 3 direct (name the brand) + 7 indirect
 // (category questions that don't name it — testing unprompted mention). Generated
 // dynamically so it works for any brand or competitor. Falls back to templates.
+// The indirect questions are deliberately open-ended "best/top X" category
+// questions where the brand may legitimately NOT appear — that is the honest
+// signal we measure (e.g. for Bitcoin: "Top 10 blockchains by TPS" — Bitcoin
+// won't be in it; "Best smart-contract platforms" — Bitcoin isn't one).
 async function planQueries(brand: string, ctx?: BrandContext): Promise<{ direct: string[]; indirect: string[] }> {
   const identity = identityLine(brand, ctx);
   try {
@@ -97,8 +101,8 @@ async function planQueries(brand: string, ctx?: BrandContext): Promise<{ direct:
           {
             role: "user",
             content: `Generate Generative-Engine-Optimization test queries for the Web3 project ${identity}. Return JSON with two arrays of natural user search questions:
-- "direct": exactly 5 questions that explicitly name ${brand} (e.g. "What is ${brand}?", "Is ${brand} safe?", "What are ${brand}'s fees?").
-- "indirect": exactly 5 questions about ${brand}'s category/use-case that do NOT mention ${brand} by name, but for which ${brand} would be a relevant answer. Infer the category from the identity above (e.g. for a fast L1 blockchain: "What is the fastest blockchain?"; for a DEX: "What's the best decentralized exchange?"; for a lending protocol: "Where can I earn yield on stablecoins?").`,
+- "direct": exactly 3 questions that explicitly name ${brand} (e.g. "What is ${brand}?", "Is ${brand} safe?", "What are ${brand}'s fees?").
+- "indirect": exactly 7 realistic questions about ${brand}'s category/use-case that do NOT mention ${brand} by name. Infer the category from the identity above. Write them as genuine, competitive discovery questions a user would ask WITHOUT knowing ${brand} exists — ranked lists and "best/top" comparisons where ${brand} may or may not be surfaced (e.g. "Top 10 blockchains by TPS", "Best smart-contract platforms in 2025", "Which DEX has the lowest fees?", "Where can I earn the highest yield on stablecoins?"). Do NOT bias the questions toward ${brand}; if ${brand} genuinely wouldn't be a top answer, that is fine — we are measuring honest unprompted visibility.`,
           },
         ],
         response_format: {
@@ -109,8 +113,8 @@ async function planQueries(brand: string, ctx?: BrandContext): Promise<{ direct:
       20000
     );
     const p = JSON.parse(content) as { direct?: unknown[]; indirect?: unknown[] };
-    const direct = (p.direct ?? []).slice(0, 5).map(String);
-    const indirect = (p.indirect ?? []).slice(0, 5).map(String);
+    const direct = (p.direct ?? []).slice(0, 3).map(String);
+    const indirect = (p.indirect ?? []).slice(0, 7).map(String);
     if (direct.length && indirect.length) return { direct, indirect };
   } catch {
     /* fall through to templates */
@@ -119,9 +123,7 @@ async function planQueries(brand: string, ctx?: BrandContext): Promise<{ direct:
     direct: [
       `What is ${brand}?`,
       `Is ${brand} safe and has it been audited?`,
-      `What are ${brand}'s fees?`,
-      `What is ${brand}'s tokenomics?`,
-      `Who created ${brand} and when did it launch?`,
+      `What are ${brand}'s fees and tokenomics?`,
     ],
     indirect: [
       `What are the leading Web3 projects right now?`,
@@ -129,6 +131,8 @@ async function planQueries(brand: string, ctx?: BrandContext): Promise<{ direct:
       `What is the most reliable blockchain network?`,
       `Which on-chain projects are considered the safest?`,
       `What are the best alternatives for crypto users today?`,
+      `Which projects have the strongest developer activity?`,
+      `Where should a new crypto user start today?`,
     ],
   };
 }
@@ -156,7 +160,7 @@ async function queryEngine(model: string, queries: string[]): Promise<string | n
 const JUDGE_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["brandScore", "soa", "accuracy", "citation", "engines", "alerts", "topQueries", "canonicalFacts"],
+  required: ["brandScore", "soa", "accuracy", "citation", "engines", "alerts", "topQueries", "canonicalFacts", "recommendations"],
   properties: {
     brandScore: { type: "integer" },
     soa: { type: "integer" },
@@ -219,6 +223,19 @@ const JUDGE_SCHEMA = {
         },
       },
     },
+    recommendations: {
+      type: "array",
+      description: "3-5 concrete, prioritized GEO actions this specific project can take to improve how AI engines surface and describe it, based ONLY on the gaps observed in the responses (e.g. where it was missing on indirect queries or facts were wrong). Each must be an actionable step, not a platitude.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["action", "priority"],
+        properties: {
+          action: { type: "string", description: "A specific, doable action, e.g. 'Publish a comparison page targeting \"best low-fee DEX\" — you were absent from that query on 4/6 engines.'" },
+          priority: { type: "string", enum: ["high", "medium", "low"] },
+        },
+      },
+    },
   },
 } as const;
 
@@ -229,8 +246,9 @@ You are given the actual responses several AI engines gave about a Web3 project.
 - soa 0-100: how prominent/complete the project is in that engine's answer.
 - sentiment 0-100: how positive/favorable the engine's portrayal of the project is (50 = neutral).
 Only treat mentions as the SAME project when they match the given identity (website/category); ignore unrelated same-named entities.
-The engines were asked a mix of DIRECT queries (that name the project) and INDIRECT queries (category questions that don't). The most important visibility signal is whether the engine surfaces the project UNPROMPTED on indirect queries — weight Share of Answer and Brand Score heavily on that, not just on direct answers.
-Then give overall brandScore, share of answer (soa), accuracy, and citation (how often engines cite it as a source). List concrete misinformation as alerts, use the 10 asked questions as topQueries (mark whether the project appeared), and key project facts with whether engines represent them correctly as canonicalFacts. Base everything on the provided responses. Output only the structured fields.`;
+BE HONEST — DO NOT INFLATE. The identity details (website, socials, category) are provided ONLY to disambiguate the project from same-named entities. They are NOT evidence that the project is well-known and must NEVER raise the scores. Score strictly on what the engines ACTUALLY said. If an engine did not surface the project, its scores for that engine are 0 — no matter how detailed the provided identity is.
+The engines were asked a mix of DIRECT queries (that name the project) and INDIRECT queries (category "best/top" questions that don't). The most important visibility signal is whether the engine surfaces the project UNPROMPTED on indirect queries. If the project genuinely would not be a top answer to an indirect query and the engine didn't name it, that item is a real zero for Share of Answer — report it as zero, do not give partial credit. A low or zero score is the correct, useful output when the project simply isn't visible.
+Then give overall brandScore, share of answer (soa), accuracy, and citation (how often engines cite it as a source). List concrete misinformation as alerts, use the 10 asked questions as topQueries (mark whether the project appeared), and key project facts with whether engines represent them correctly as canonicalFacts. Finally, given the observed gaps (especially indirect queries where the project was absent), produce recommendations: concrete, prioritized GEO actions to improve real visibility — this is how the user improves a low score honestly rather than by inflating it. Base everything on the provided responses. Output only the structured fields.`;
 
 function clamp(n: unknown, lo = 0, hi = 100): number {
   const v = typeof n === "number" && Number.isFinite(n) ? Math.round(n) : 0;
@@ -269,6 +287,10 @@ function normalize(raw: BrandCore, brand: string, failed: Set<EngineName>): Bran
     status: (["accurate", "violated", "missing"].includes(f.status) ? f.status : "missing") as "accurate" | "violated" | "missing",
     violations: clamp(f.violations, 0, 9),
   }));
+  const recommendations = (raw.recommendations ?? []).slice(0, 5).map((r) => ({
+    action: String(r.action || ""),
+    priority: (["high", "medium", "low"].includes(r.priority) ? r.priority : "medium") as "high" | "medium" | "low",
+  })).filter((r) => r.action);
   return {
     brandScore: clamp(raw.brandScore),
     soa: clamp(raw.soa),
@@ -278,6 +300,7 @@ function normalize(raw: BrandCore, brand: string, failed: Set<EngineName>): Bran
     alerts: alerts.length ? alerts : [{ severity: "medium", engine: "ChatGPT", query: brand, issue: `Limited information about ${brand}` }],
     topQueries: topQueries.length ? topQueries : [{ query: brand, mentions: 1, accuracy: 50, trend: "stable" }],
     canonicalFacts: canonicalFacts.length ? canonicalFacts : [{ fact: `${brand} is a Web3 project`, status: "missing", violations: 1 }],
+    recommendations: recommendations.length ? recommendations : [{ action: `Publish clear, factual pages about ${brand} (what it is, category, fees, audits) so AI engines can surface it on category questions.`, priority: "high" }],
   };
 }
 
@@ -297,7 +320,7 @@ export async function analyzeBrandVisibility(
 ): Promise<{ core: BrandCore; responses: Record<string, string> }> {
   const models = engineModels();
 
-  // 0. Plan a mixed query battery (5 direct + 5 indirect) for this brand.
+  // 0. Plan a mixed query battery (3 direct + 7 indirect) for this brand.
   const plan = await planQueries(brand, ctx);
   const queries = [...plan.direct, ...plan.indirect];
 
