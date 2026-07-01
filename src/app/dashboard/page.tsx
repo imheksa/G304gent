@@ -328,7 +328,7 @@ function DashboardNav() {
 type DashData = BrandData;
 
 function OverviewTab({ data, level, onLogin }: { data: DashData; level: AccessLevel; onLogin: () => void }) {
-  const { summaryCards, engines, soaTrend, alerts, topQueries } = data;
+  const { summaryCards, engines, soaTrend, alerts, topQueries, recommendations } = data;
   const full = level === "subscribed";
 
   // Everything below the summary cards is gated — only subscribers see it.
@@ -403,6 +403,30 @@ function OverviewTab({ data, level, onLogin }: { data: DashData; level: AccessLe
           </div>
         </div>
       </div>
+
+      {recommendations.length > 0 && (
+        <div className="rounded-xl border border-cyan-500/20 bg-gradient-to-b from-cyan-500/[0.06] to-gray-900/50 p-6">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-mono uppercase tracking-widest text-cyan-300">How to Improve</h3>
+            <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-mono text-cyan-300">GEO actions</span>
+          </div>
+          <p className="mt-1 text-xs text-gray-400">
+            Scores are measured honestly — a low or zero score means the engines didn&apos;t surface you. These are concrete steps to earn real visibility.
+          </p>
+          <div className="mt-4 grid gap-2 md:grid-cols-2">
+            {recommendations.map((rec, i) => (
+              <div key={i} className="flex items-start gap-3 rounded-lg border border-white/5 bg-gray-950/50 px-4 py-3">
+                <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-mono uppercase ${
+                  rec.priority === "high" ? "bg-red-500/10 text-red-400" : rec.priority === "medium" ? "bg-amber-500/10 text-amber-400" : "bg-gray-500/10 text-gray-400"
+                }`}>
+                  {rec.priority}
+                </span>
+                <p className="text-sm text-gray-200">{rec.action}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 
