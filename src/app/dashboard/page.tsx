@@ -336,8 +336,8 @@ function OverviewTab({ data, level, onLogin }: { data: DashData; level: AccessLe
     <div className="space-y-8">
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 rounded-xl border border-white/5 bg-gray-900/50 p-6">
-          <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Share of Answer Trend</h3>
-          <p className="mt-1 text-xs text-gray-400">You vs top competitor — last 6 weeks</p>
+          <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Metric Trend</h3>
+          <p className="mt-1 text-xs text-gray-400">Share of Answer vs Accuracy — your recent scans</p>
           <div className="mt-6">
             <SoAChart soaTrend={soaTrend} />
           </div>
@@ -417,9 +417,13 @@ function OverviewTab({ data, level, onLogin }: { data: DashData; level: AccessLe
               <span className="text-sm text-gray-500">{card.unit}</span>
             </div>
             <div className="mt-2">
-              <span className={`text-xs font-mono ${card.change.startsWith("+") ? "text-emerald-400" : "text-red-400"}`}>
-                {card.change} vs last week
-              </span>
+              {card.change === "new" ? (
+                <span className="text-xs font-mono text-gray-500">first scan</span>
+              ) : (
+                <span className={`text-xs font-mono ${card.change.startsWith("+") ? "text-emerald-400" : "text-red-400"}`}>
+                  {card.change} vs last scan
+                </span>
+              )}
             </div>
           </div>
         ))}
@@ -496,7 +500,7 @@ function EnginesTab({ data }: { data: DashData }) {
             <div className="mt-6 grid grid-cols-3 gap-4">
               <MetricBar label="Accuracy" value={engine.accuracy} color="emerald" />
               <MetricBar label="Share of Answer" value={engine.soa} color="cyan" />
-              <MetricBar label="Sentiment" value={74} color="violet" />
+              <MetricBar label="Sentiment" value={engine.sentiment} color="violet" />
             </div>
           )}
           {engine.status === "not_found" && (
@@ -743,10 +747,10 @@ function SoAChart({ soaTrend }: { soaTrend: { week: string; you: number; competi
       ))}
       <div className="flex gap-6 mt-2 ml-11">
         <span className="flex items-center gap-2 text-xs text-gray-500">
-          <span className="h-2 w-6 rounded-full bg-cyan-500/60" /> You
+          <span className="h-2 w-6 rounded-full bg-cyan-500/60" /> Share of Answer
         </span>
         <span className="flex items-center gap-2 text-xs text-gray-500">
-          <span className="h-2 w-6 rounded-full bg-gray-600/60" /> Top Competitor
+          <span className="h-2 w-6 rounded-full bg-gray-600/60" /> Accuracy
         </span>
       </div>
     </div>
