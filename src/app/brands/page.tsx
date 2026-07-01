@@ -20,6 +20,7 @@ import {
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
 import { ChipLogo } from "@/components/Logo";
+import { ScanProgress } from "@/components/ScanProgress";
 
 export default function BrandsPage() {
   return (
@@ -394,6 +395,16 @@ function BrandCard({ profile, deleteConfirm, onEdit, onDelete, onDeleteConfirm, 
     : "from-orange-500/10 to-red-500/10 hover:from-orange-500/20 hover:to-red-500/20 text-orange-400";
 
   return (
+    <>
+      {scanning && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+          <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-gray-900 p-6 shadow-2xl">
+            <p className="mb-1 text-center text-xs font-mono uppercase tracking-widest text-cyan-400">Quick Scan</p>
+            <ScanProgress brand={profile.name} />
+          </div>
+        </div>
+      )}
     <div className={`group rounded-xl border border-white/5 bg-gray-900/50 ${borderHover} transition-all`}>
       <div className="p-6">
         <div className="flex items-start justify-between">
@@ -512,6 +523,7 @@ function BrandCard({ profile, deleteConfirm, onEdit, onDelete, onDeleteConfirm, 
         </div>
       </div>
     </div>
+    </>
   );
 }
 

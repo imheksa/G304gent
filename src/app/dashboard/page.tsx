@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { generateData, getUserFacts, addUserFact, removeUserFact, type BrandData, type CanonicalFact } from "@/lib/brand-data";
 import { fetchBrandNames, fetchScan, requestScan, quickScan, AI_ENABLED } from "@/lib/store";
 import { EngineIcon } from "@/components/EngineIcon";
+import { ScanProgress } from "@/components/ScanProgress";
 
 // Formats a remaining-cooldown duration as a short "Xm" / "Xs" label.
 function minutesUntil(ms: number): string {
@@ -136,8 +137,8 @@ function DashboardInner() {
   }
 
   // With the AI backend on, the brand's data comes from a real scan loaded via
-  // /api/scan; show a scanning screen until it's ready.
-  if (AI_ENABLED && brand && !aiData) {
+  // /api/scan; show the scanning progress on first load and during a re-scan.
+  if (AI_ENABLED && brand && (!aiData || scanning)) {
     return <ScanningScreen brand={brand} scanning={scanning} />;
   }
 
@@ -262,15 +263,15 @@ function ScanningScreen({ brand, scanning }: { brand: string; scanning: boolean 
   return (
     <div className="min-h-screen bg-gray-950">
       <DashboardNav />
-      <div className="flex flex-col items-center justify-center gap-4 px-6 py-32 text-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
-        <p className="text-lg font-semibold text-white">
-          {scanning ? `Scanning ${brand} across AI engines…` : `Loading ${brand}…`}
-        </p>
-        <p className="max-w-sm text-sm text-gray-500">
-          Querying ChatGPT, Gemini, Claude, Grok, Deepseek &amp; Google AI for how they represent{" "}
-          <span className="text-gray-300">{brand}</span>. This can take a few seconds.
-        </p>
+      <div className="px-6 py-16">
+        {scanning ? (
+          <ScanProgress brand={brand} />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+            <p className="text-lg font-semibold text-white">Loading {brand}…</p>
+          </div>
+        )}
       </div>
     </div>
   );
