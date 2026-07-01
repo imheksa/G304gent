@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { generateData } from "@/lib/brand-data";
-import { fetchBrandNames, fetchCompetitorNames } from "@/lib/store";
+import { generateData, type BrandData } from "@/lib/brand-data";
+import { fetchBrandNames, fetchCompetitorNames, fetchScan, quickScan, AI_ENABLED } from "@/lib/store";
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
 import { ChipLogo } from "@/components/Logo";
@@ -49,9 +49,50 @@ function CompareInner() {
   const { canAccess } = useAccess();
   const locked = !canAccess("subscribed");
 
-  const dataA = brandA ? generateData(brandA) : null;
-  const dataB = brandB ? generateData(brandB) : null;
-  const bothReady = dataA && dataB;
+  const [dataA, setDataA] = useState<BrandData | null>(null);
+  const [dataB, setDataB] = useState<BrandData | null>(null);
+  const [loadingA, setLoadingA] = useState(false);
+  const [loadingB, setLoadingB] = useState(false);
+
+  // Load a brand's real scan for comparison: prefer the stored scan, and only
+  // run a fresh scan if none exists yet (quickScan also returns cached data on
+  // cooldown). Falls back to the generator when the AI backend is off.
+  async function loadCompare(brand: string): Promise<BrandData | null> {
+    if (!brand) return null;
+    if (!AI_ENABLED) return generateData(brand);
+    const stored = await fetchScan(brand);
+    if (stored) return stored;
+    const r = await quickScan(brand);
+    if (r.status === "ok" || r.status === "cooldown") return r.data;
+    return null;
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!brandA) { setDataA(null); return; }
+    setLoadingA(true);
+    loadCompare(brandA)
+      .then((d) => { if (!cancelled) setDataA(d); })
+      .catch(() => { if (!cancelled) setDataA(null); })
+      .finally(() => { if (!cancelled) setLoadingA(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandA]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!brandB) { setDataB(null); return; }
+    setLoadingB(true);
+    loadCompare(brandB)
+      .then((d) => { if (!cancelled) setDataB(d); })
+      .catch(() => { if (!cancelled) setDataB(null); })
+      .finally(() => { if (!cancelled) setLoadingB(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandB]);
+
+  const loading = loadingA || loadingB;
+  const bothReady = Boolean(dataA && dataB);
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -99,7 +140,14 @@ function CompareInner() {
           />
         </div>
 
-        {bothReady && (
+        {loading && (
+          <div className="mt-12 flex flex-col items-center gap-3 py-12 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+            <p className="text-sm text-gray-400">Running real AI scans across all engines…</p>
+          </div>
+        )}
+
+        {dataA && dataB && !loading && (
           <div className="mt-10 space-y-8">
             {/* Score Overview */}
             <div className="grid gap-4 md:grid-cols-4">
@@ -155,10 +203,11 @@ function CompareInner() {
             {/* SoA Trend */}
             <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
               <h3 className="text-sm font-mono uppercase tracking-widest text-gray-400">Share of Answer Trend</h3>
-              <p className="mt-1 text-xs text-gray-400">6-week SoA comparison</p>
+              <p className="mt-1 text-xs text-gray-400">Share of Answer across recent scans</p>
               <div className="mt-6 space-y-3">
                 {dataA.soaTrend.map((weekA, i) => {
                   const weekB = dataB.soaTrend[i];
+                  if (!weekB) return null;
                   const max = 60;
                   return (
                     <div key={weekA.week} className="flex items-center gap-3">
@@ -205,7 +254,7 @@ function CompareInner() {
           </div>
         )}
 
-        {!bothReady && (myBrands.length === 0 || competitors.length === 0) && (
+        {!bothReady && !loading && (myBrands.length === 0 || competitors.length === 0) && (
           <div className="mt-16 text-center">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl border border-white/5 bg-gray-900/50">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-10 w-10 text-gray-400">
@@ -220,12 +269,12 @@ function CompareInner() {
                 : "Add a competitor to compare against"}
             </h3>
             <p className="mt-2 text-sm text-gray-500">Go to My Brands to add your brand and competitors</p>
-            <a
+            <Link
               href="/brands"
               className="mt-6 inline-block rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
             >
               Go to My Brands
-            </a>
+            </Link>
           </div>
         )}
       </div>
@@ -303,9 +352,9 @@ function BrandSelector({ label, value, onChange, options, color, emptyLabel, add
       ) : (
         <div className="mt-3">
           <p className="text-sm text-gray-400">{emptyLabel}</p>
-          <a href={addLink} className={`mt-2 inline-block text-sm font-medium ${labelColor} hover:underline`}>
+          <Link href={addLink} className={`mt-2 inline-block text-sm font-medium ${labelColor} hover:underline`}>
             {addLabel}
-          </a>
+          </Link>
         </div>
       )}
     </div>
