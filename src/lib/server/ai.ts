@@ -63,25 +63,68 @@ async function callOpenRouter(
   }
 }
 
-// The battery of real user queries every engine is probed with per scan.
-function queriesFor(brand: string): string[] {
-  return [
-    `What is ${brand} and what does it do?`,
-    `Is ${brand} safe, and has it been audited?`,
-    `What are ${brand}'s fees?`,
-    `What is ${brand}'s tokenomics and token supply?`,
-    `What technology or consensus mechanism does ${brand} use?`,
-    `What are the best alternatives to ${brand}?`,
-    `Has ${brand} had any hacks, outages, or security incidents?`,
-    `Who created ${brand} and when did it launch?`,
-    `What is ${brand}'s total value locked or market position?`,
-    `Should I use ${brand} in 2025 — what are the pros and cons?`,
-  ];
+const QUERY_PLAN_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["direct", "indirect"],
+  properties: {
+    direct: { type: "array", description: "5 questions that explicitly name the project", items: { type: "string" } },
+    indirect: { type: "array", description: "5 category questions that do NOT name the project", items: { type: "string" } },
+  },
+} as const;
+
+// Builds a mixed query battery per brand: 5 direct (name the brand) + 5 indirect
+// (category questions that don't name it — testing unprompted mention). Generated
+// dynamically so it works for any brand or competitor. Falls back to templates.
+async function planQueries(brand: string): Promise<{ direct: string[]; indirect: string[] }> {
+  try {
+    const content = await callOpenRouter(
+      {
+        model: JUDGE_MODEL,
+        max_tokens: 500,
+        messages: [
+          {
+            role: "user",
+            content: `Generate Generative-Engine-Optimization test queries for the Web3 project "${brand}". Return JSON with two arrays of natural user search questions:
+- "direct": exactly 5 questions that explicitly name ${brand} (e.g. "What is ${brand}?", "Is ${brand} safe?", "What are ${brand}'s fees?").
+- "indirect": exactly 5 questions about ${brand}'s category/use-case that do NOT mention ${brand} by name, but for which ${brand} would be a relevant answer. Infer the category (e.g. for a fast L1 blockchain: "What is the fastest blockchain?"; for a DEX: "What's the best decentralized exchange?"; for a lending protocol: "Where can I earn yield on stablecoins?").`,
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "query_plan", strict: true, schema: QUERY_PLAN_SCHEMA },
+        },
+      },
+      20000
+    );
+    const p = JSON.parse(content) as { direct?: unknown[]; indirect?: unknown[] };
+    const direct = (p.direct ?? []).slice(0, 5).map(String);
+    const indirect = (p.indirect ?? []).slice(0, 5).map(String);
+    if (direct.length && indirect.length) return { direct, indirect };
+  } catch {
+    /* fall through to templates */
+  }
+  return {
+    direct: [
+      `What is ${brand}?`,
+      `Is ${brand} safe and has it been audited?`,
+      `What are ${brand}'s fees?`,
+      `What is ${brand}'s tokenomics?`,
+      `Who created ${brand} and when did it launch?`,
+    ],
+    indirect: [
+      `What are the leading Web3 projects right now?`,
+      `Which crypto platform has the lowest fees?`,
+      `What is the most reliable blockchain network?`,
+      `Which on-chain projects are considered the safest?`,
+      `What are the best alternatives for crypto users today?`,
+    ],
+  };
 }
 
-// Ask one engine the full battery of queries in a single call. Returns null if
-// the call fails (the engine is then treated as "not_found").
-async function queryEngine(brand: string, model: string, queries: string[]): Promise<string | null> {
+// Ask one engine the full battery of queries in a single neutral call (so the
+// indirect answers aren't biased toward the brand). Returns null on failure.
+async function queryEngine(model: string, queries: string[]): Promise<string | null> {
   const list = queries.map((q, i) => `${i + 1}. ${q}`).join("\n");
   try {
     return await callOpenRouter({
@@ -90,7 +133,7 @@ async function queryEngine(brand: string, model: string, queries: string[]): Pro
       messages: [
         {
           role: "user",
-          content: `Answer each of these questions about the Web3 project "${brand}" briefly (1-2 sentences each). If you are unsure or don't recognize it, say so for that item.\n\n${list}`,
+          content: `Answer each of the following questions briefly (1-2 sentences each). If you are unsure, say so for that item.\n\n${list}`,
         },
       ],
     });
@@ -172,7 +215,8 @@ You are given the actual responses several AI engines gave about a Web3 project.
 - status "mentioned" if the engine gave substantive, on-topic information; "not_found" if it didn't recognize the project or gave nothing useful.
 - accuracy 0-100: are the facts (fees, audits, custody, tokenomics, launch year, TVL) correct and current.
 - soa 0-100: how prominent/complete the project is in that engine's answer.
-Then give overall brandScore, share of answer (soa), accuracy, and citation (how often engines cite it as a source). List concrete misinformation as alerts, plausible user queries as topQueries, and key project facts with whether engines represent them correctly as canonicalFacts. Base everything on the provided responses. Output only the structured fields.`;
+The engines were asked a mix of DIRECT queries (that name the project) and INDIRECT queries (category questions that don't). The most important visibility signal is whether the engine surfaces the project UNPROMPTED on indirect queries — weight Share of Answer and Brand Score heavily on that, not just on direct answers.
+Then give overall brandScore, share of answer (soa), accuracy, and citation (how often engines cite it as a source). List concrete misinformation as alerts, use the 10 asked questions as topQueries (mark whether the project appeared), and key project facts with whether engines represent them correctly as canonicalFacts. Base everything on the provided responses. Output only the structured fields.`;
 
 function clamp(n: unknown, lo = 0, hi = 100): number {
   const v = typeof n === "number" && Number.isFinite(n) ? Math.round(n) : 0;
@@ -236,14 +280,17 @@ export async function analyzeBrandVisibility(
   onEvent: (e: ScanEvent) => void = () => {}
 ): Promise<{ core: BrandCore; responses: Record<string, string> }> {
   const models = engineModels();
-  const queries = queriesFor(brand);
+
+  // 0. Plan a mixed query battery (5 direct + 5 indirect) for this brand.
+  const plan = await planQueries(brand);
+  const queries = [...plan.direct, ...plan.indirect];
 
   // 1. Query all engines in parallel with the full query battery, emitting a
   // start/done event for each as it resolves.
   const answers = await Promise.all(
     ENGINES.map(async (name) => {
       onEvent({ type: "engine_start", name });
-      const text = await queryEngine(brand, models[name], queries);
+      const text = await queryEngine(models[name], queries);
       onEvent({ type: "engine_done", name, found: Boolean(text) });
       return { name, text };
     })
@@ -254,10 +301,18 @@ export async function analyzeBrandVisibility(
 
   onEvent({ type: "judge_start" });
 
-  // 2. Judge scores every engine's answer.
+  // 2. Judge scores every engine's answer, with the direct/indirect split.
   const transcript = answers
     .map((a) => `### ${a.name}\n${a.text ? a.text.trim() : "(no response — engine did not recognize the project)"}`)
     .join("\n\n");
+
+  const queryContext = [
+    "DIRECT queries (explicitly name the project):",
+    ...plan.direct.map((q, i) => `  D${i + 1}. ${q}`),
+    "",
+    "INDIRECT queries (category questions that do NOT name the project — the project is only 'present' if the engine mentioned it unprompted):",
+    ...plan.indirect.map((q, i) => `  I${i + 1}. ${q}`),
+  ].join("\n");
 
   const content = await callOpenRouter(
     {
@@ -267,7 +322,7 @@ export async function analyzeBrandVisibility(
         { role: "system", content: JUDGE_SYSTEM },
         {
           role: "user",
-          content: `Project: "${brand}"\n\nHere is what each AI engine said about it:\n\n${transcript}\n\nScore each engine and the project overall.`,
+          content: `Project: "${brand}"\n\nThe engines were each asked these 10 questions:\n${queryContext}\n\nHere is what each AI engine answered (all 10 in order):\n\n${transcript}\n\nScore each engine and the project overall. For INDIRECT queries, only count the project as present/visible if the engine named it without being prompted — that is the key visibility signal. Use these 10 queries as the topQueries.`,
         },
       ],
       response_format: {
