@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { EngineIcon } from "./EngineIcon";
 
-// Animated per-engine progress shown while a scan runs. The real scan runs in
-// parallel server-side, so this steps through each engine with a rising % and a
-// "success" tick to give live feedback; when `done` is set every step snaps to
-// complete.
+export type ScanStepStatus = "queued" | "running" | "done";
+
+// The dashboard steps. The six engine steps map 1:1 to the engine names; the
+// last two (facts + judge) follow the judge status.
 const STEPS: { engine: string | null; label: string }[] = [
   { engine: "ChatGPT", label: "Checking ChatGPT visibility" },
   { engine: "Gemini", label: "Measuring Gemini brand share" },
@@ -18,32 +18,50 @@ const STEPS: { engine: string | null; label: string }[] = [
   { engine: null, label: "Scoring with judge model" },
 ];
 
-export function ScanProgress({ brand, done = false }: { brand: string; done?: boolean }) {
+// Animated per-engine progress. When `engineStatus`/`judgeStatus` are provided
+// (streaming mode), each step reflects real progress from the server; otherwise
+// it runs a timed simulation (fallback).
+export function ScanProgress({
+  brand,
+  engineStatus,
+  judgeStatus,
+}: {
+  brand: string;
+  engineStatus?: Record<string, ScanStepStatus>;
+  judgeStatus?: ScanStepStatus;
+}) {
+  const real = Boolean(engineStatus);
   const [pct, setPct] = useState<number[]>(() => STEPS.map(() => 0));
   const active = useRef(0);
+  // Keep latest real status in a ref so the interval stays stable.
+  const statusRef = useRef({ engineStatus, judgeStatus });
+  statusRef.current = { engineStatus, judgeStatus };
 
   useEffect(() => {
     const id = setInterval(() => {
       setPct((prev) => {
-        const i = active.current;
-        if (i >= STEPS.length) return prev;
         const next = [...prev];
-        // The last step waits at 95% until the real scan resolves (`done`).
-        const cap = i === STEPS.length - 1 ? 95 : 100;
-        next[i] = Math.min(cap, next[i] + Math.random() * 16 + 7);
-        if (next[i] >= 100) active.current = i + 1;
+        if (real) {
+          const { engineStatus: es, judgeStatus: js } = statusRef.current;
+          STEPS.forEach((s, i) => {
+            const st: ScanStepStatus = s.engine ? es?.[s.engine] ?? "queued" : js ?? "queued";
+            const target = st === "done" ? 100 : st === "running" ? 92 : 0;
+            if (next[i] < target) next[i] = Math.min(target, next[i] + Math.random() * 13 + 6);
+            else if (st === "done") next[i] = 100;
+          });
+        } else {
+          const i = active.current;
+          if (i < STEPS.length) {
+            const cap = i === STEPS.length - 1 ? 95 : 100;
+            next[i] = Math.min(cap, next[i] + Math.random() * 16 + 7);
+            if (next[i] >= 100) active.current = i + 1;
+          }
+        }
         return next;
       });
     }, 140);
     return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    if (done) {
-      active.current = STEPS.length;
-      setPct(STEPS.map(() => 100));
-    }
-  }, [done]);
+  }, [real]);
 
   return (
     <div className="mx-auto w-full max-w-md">
@@ -59,7 +77,11 @@ export function ScanProgress({ brand, done = false }: { brand: string; done?: bo
             <div
               key={i}
               className={`flex items-center gap-3 rounded-lg border px-4 py-2.5 transition-colors ${
-                complete ? "border-emerald-500/15 bg-emerald-500/5" : started ? "border-cyan-500/15 bg-gray-900/60" : "border-white/5 bg-gray-900/40"
+                complete
+                  ? "border-emerald-500/15 bg-emerald-500/5"
+                  : started
+                  ? "border-cyan-500/15 bg-gray-900/60"
+                  : "border-white/5 bg-gray-900/40"
               }`}
             >
               <span className="flex h-6 w-6 items-center justify-center text-gray-400">

@@ -14,13 +14,16 @@ import {
   saveBrand,
   deleteBrand,
   fetchTier,
-  quickScan,
+  streamScan,
   AI_ENABLED,
+  type ScanProgressEvent,
 } from "@/lib/store";
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
 import { ChipLogo } from "@/components/Logo";
-import { ScanProgress } from "@/components/ScanProgress";
+import { ScanProgress, type ScanStepStatus } from "@/components/ScanProgress";
+
+const SCAN_ENGINES = ["ChatGPT", "Gemini", "Claude", "Grok", "Deepseek", "Google AI"];
 
 export default function BrandsPage() {
   return (
@@ -366,12 +369,23 @@ function BrandCard({ profile, deleteConfirm, onEdit, onDelete, onDeleteConfirm, 
 
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState("");
+  const [engStatus, setEngStatus] = useState<Record<string, ScanStepStatus>>({});
+  const [judgeStatus, setJudgeStatus] = useState<ScanStepStatus>("queued");
+
+  function onScanEvent(ev: ScanProgressEvent) {
+    if (ev.type === "engine_start") setEngStatus((s) => ({ ...s, [ev.name]: "running" }));
+    else if (ev.type === "engine_done") setEngStatus((s) => ({ ...s, [ev.name]: "done" }));
+    else if (ev.type === "judge_start") setJudgeStatus("running");
+  }
 
   async function handleQuickScan() {
     setScanning(true);
     setScanMsg("");
-    const r = await quickScan(profile.name);
+    setEngStatus(Object.fromEntries(SCAN_ENGINES.map((e) => [e, "queued" as ScanStepStatus])));
+    setJudgeStatus("queued");
+    const r = await streamScan(profile.name, onScanEvent);
     if (r.status === "ok") {
+      setJudgeStatus("done");
       // Scan stored — open the dashboard to view it.
       window.location.href = `/dashboard?brand=${encodeURIComponent(profile.name)}`;
       return;
@@ -401,7 +415,7 @@ function BrandCard({ profile, deleteConfirm, onEdit, onDelete, onDeleteConfirm, 
           <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
           <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-gray-900 p-6 shadow-2xl">
             <p className="mb-1 text-center text-xs font-mono uppercase tracking-widest text-cyan-400">Quick Scan</p>
-            <ScanProgress brand={profile.name} />
+            <ScanProgress brand={profile.name} engineStatus={engStatus} judgeStatus={judgeStatus} />
           </div>
         </div>
       )}
