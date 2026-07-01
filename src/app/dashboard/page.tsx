@@ -4,9 +4,12 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { generateData, getUserFacts, addUserFact, removeUserFact, type BrandData, type CanonicalFact } from "@/lib/brand-data";
-import { fetchBrandNames, fetchScan, requestScan, quickScan, AI_ENABLED } from "@/lib/store";
+import { fetchBrandNames, fetchScan, streamScan, AI_ENABLED, type ScanProgressEvent } from "@/lib/store";
 import { EngineIcon } from "@/components/EngineIcon";
-import { ScanProgress } from "@/components/ScanProgress";
+import { ScanProgress, type ScanStepStatus } from "@/components/ScanProgress";
+
+// Engines probed per scan (order matches the progress steps).
+const SCAN_ENGINES = ["ChatGPT", "Gemini", "Claude", "Grok", "Deepseek", "Google AI"];
 
 // Formats a remaining-cooldown duration as a short "Xm" / "Xs" label.
 function minutesUntil(ms: number): string {
@@ -45,24 +48,38 @@ function DashboardInner() {
   const [aiData, setAiData] = useState<BrandData | null>(null);
   const [scanning, setScanning] = useState(false);
   const [rescanMsg, setRescanMsg] = useState("");
+  const [engStatus, setEngStatus] = useState<Record<string, ScanStepStatus>>({});
+  const [judgeStatus, setJudgeStatus] = useState<ScanStepStatus>("queued");
   const { ready, authenticated, level, canAccess, login } = useAccess();
 
-  // Re-run the AI scan for the active brand (the dashboard's Re-scan button).
-  // Keeps the current view; surfaces the once-per-hour cooldown as a message.
-  async function runScan(target: string) {
+  function onScanEvent(ev: ScanProgressEvent) {
+    if (ev.type === "engine_start") setEngStatus((s) => ({ ...s, [ev.name]: "running" }));
+    else if (ev.type === "engine_done") setEngStatus((s) => ({ ...s, [ev.name]: "done" }));
+    else if (ev.type === "judge_start") setJudgeStatus("running");
+  }
+
+  // Runs a streaming scan with live per-engine progress. Surfaces the
+  // once-per-hour cooldown as a message (allowlisted wallets are exempt).
+  async function doStreamingScan(target: string) {
     setScanning(true);
     setRescanMsg("");
-    const r = await quickScan(target);
+    setEngStatus(Object.fromEntries(SCAN_ENGINES.map((e) => [e, "queued" as ScanStepStatus])));
+    setJudgeStatus("queued");
+    const r = await streamScan(target, onScanEvent);
     if (r.status === "ok") {
+      setJudgeStatus("done");
       setAiData(r.data);
     } else if (r.status === "cooldown") {
       if (r.data) setAiData(r.data);
       setRescanMsg(`Scanned recently — next scan in ${minutesUntil(r.retryAfterMs)}.`);
     } else if (r.status === "error") {
       setRescanMsg("Scan failed. Please try again later.");
+      setAiData((cur) => cur ?? generateData(target));
     }
     setScanning(false);
   }
+
+  const runScan = (target: string) => doStreamingScan(target);
 
   useEffect(() => {
     if (!AI_ENABLED || !brand) return;
@@ -71,22 +88,22 @@ function DashboardInner() {
     setScanning(false);
     (async () => {
       try {
-        let d = await fetchScan(brand);
+        const stored = await fetchScan(brand);
         if (cancelled) return;
-        if (!d) {
-          setScanning(true);
-          d = await requestScan(brand);
+        if (stored) {
+          setAiData(stored);
+          return;
         }
-        if (!cancelled) setAiData(d);
+        // No stored scan yet — run a live streaming scan.
+        await doStreamingScan(brand);
       } catch {
         if (!cancelled) setAiData(generateData(brand));
-      } finally {
-        if (!cancelled) setScanning(false);
       }
     })();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brand]);
 
   useEffect(() => {
@@ -139,7 +156,7 @@ function DashboardInner() {
   // With the AI backend on, the brand's data comes from a real scan loaded via
   // /api/scan; show the scanning progress on first load and during a re-scan.
   if (AI_ENABLED && brand && (!aiData || scanning)) {
-    return <ScanningScreen brand={brand} scanning={scanning} />;
+    return <ScanningScreen brand={brand} scanning={scanning} engineStatus={engStatus} judgeStatus={judgeStatus} />;
   }
 
   const data = AI_ENABLED ? aiData : brand ? generateData(brand) : null;
@@ -259,13 +276,23 @@ function DashboardInner() {
   );
 }
 
-function ScanningScreen({ brand, scanning }: { brand: string; scanning: boolean }) {
+function ScanningScreen({
+  brand,
+  scanning,
+  engineStatus,
+  judgeStatus,
+}: {
+  brand: string;
+  scanning: boolean;
+  engineStatus?: Record<string, ScanStepStatus>;
+  judgeStatus?: ScanStepStatus;
+}) {
   return (
     <div className="min-h-screen bg-gray-950">
       <DashboardNav />
       <div className="px-6 py-16">
         {scanning ? (
-          <ScanProgress brand={brand} />
+          <ScanProgress brand={brand} engineStatus={engineStatus} judgeStatus={judgeStatus} />
         ) : (
           <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />

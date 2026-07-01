@@ -222,21 +222,37 @@ function normalize(raw: BrandCore, brand: string, failed: Set<EngineName>): Bran
   };
 }
 
+// Progress events emitted during a streaming scan.
+export type ScanEvent =
+  | { type: "engine_start"; name: EngineName }
+  | { type: "engine_done"; name: EngineName; found: boolean }
+  | { type: "judge_start" };
+
 // Queries every engine for real, then has the judge score the answers. Also
 // returns the raw engine responses so the UI can show them ("View Response").
+// onEvent (optional) receives per-engine progress for streaming scans.
 export async function analyzeBrandVisibility(
-  brand: string
+  brand: string,
+  onEvent: (e: ScanEvent) => void = () => {}
 ): Promise<{ core: BrandCore; responses: Record<string, string> }> {
   const models = engineModels();
   const queries = queriesFor(brand);
 
-  // 1. Query all engines in parallel with the full query battery.
+  // 1. Query all engines in parallel with the full query battery, emitting a
+  // start/done event for each as it resolves.
   const answers = await Promise.all(
-    ENGINES.map(async (name) => ({ name, text: await queryEngine(brand, models[name], queries) }))
+    ENGINES.map(async (name) => {
+      onEvent({ type: "engine_start", name });
+      const text = await queryEngine(brand, models[name], queries);
+      onEvent({ type: "engine_done", name, found: Boolean(text) });
+      return { name, text };
+    })
   );
   const failed = new Set<EngineName>(answers.filter((a) => !a.text).map((a) => a.name));
   const responses: Record<string, string> = {};
   for (const a of answers) if (a.text) responses[a.name] = a.text.trim();
+
+  onEvent({ type: "judge_start" });
 
   // 2. Judge scores every engine's answer.
   const transcript = answers

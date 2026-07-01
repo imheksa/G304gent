@@ -143,6 +143,64 @@ export type QuickScanResult =
   | { status: "disabled" }
   | { status: "error"; message: string };
 
+export type ScanProgressEvent =
+  | { type: "engine_start"; name: string }
+  | { type: "engine_done"; name: string; found: boolean }
+  | { type: "judge_start" };
+
+// Runs a scan and streams real per-engine progress via SSE. Calls onEvent for
+// each engine start/done and the judge, and resolves with the final result.
+export async function streamScan(
+  brand: string,
+  onEvent: (e: ScanProgressEvent) => void
+): Promise<QuickScanResult> {
+  if (!AI_ENABLED) return { status: "disabled" };
+  const token = await getAccessToken();
+  const res = await fetch("/api/scan/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+    body: JSON.stringify({ brand }),
+  });
+  if (res.status === 429) {
+    const b = await res.json().catch(() => ({}));
+    return { status: "cooldown", data: (b.data as BrandData) ?? null, retryAfterMs: Number(b.retryAfterMs) || 0 };
+  }
+  if (!res.ok || !res.body) {
+    const b = await res.json().catch(() => ({}));
+    return { status: "error", message: String(b.error || res.status) };
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let finalData: BrandData | null = null;
+  let errMsg = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const parts = buf.split("\n\n");
+    buf = parts.pop() || "";
+    for (const part of parts) {
+      const line = part.replace(/^data:\s?/, "").trim();
+      if (!line) continue;
+      let ev: Record<string, unknown>;
+      try {
+        ev = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (ev.type === "done") finalData = ev.data as BrandData;
+      else if (ev.type === "error") errMsg = String(ev.error);
+      else onEvent(ev as unknown as ScanProgressEvent);
+    }
+  }
+
+  if (finalData) return { status: "ok", data: finalData };
+  return { status: "error", message: errMsg || "scan_failed" };
+}
+
 // Like requestScan but never throws — surfaces the once-per-hour cooldown (429)
 // as a result instead of an error, so the UI can show a friendly message.
 export async function quickScan(brand: string): Promise<QuickScanResult> {
