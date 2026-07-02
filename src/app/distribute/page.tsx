@@ -147,6 +147,7 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
   const params = useSearchParams();
   const [status, setStatus] = useState<WikidataStatus | null>(null);
   const [description, setDescription] = useState("");
+  const [title, setTitle] = useState("");
   const [sources, setSources] = useState<string[]>(["", "", ""]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -161,6 +162,7 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
   useEffect(() => {
     setResult(null);
     setError("");
+    setTitle(profile.name.slice(0, 120));
     setDescription(facts[0]?.slice(0, 240) ?? "");
     setSources(["", "", ""]);
   }, [profile.name, facts]);
@@ -175,7 +177,7 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
     setResult(null);
     try {
       const r = await wikidataSubmit({
-        name: profile.name,
+        name: title.trim() || profile.name,
         description,
         website: profile.website,
         twitter: profile.twitter,
@@ -195,7 +197,7 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
   };
 
   // Client-side preview mirroring the server's property mapping.
-  const willWrite: string[] = [`Label: ${profile.name}`, ...(description ? [`Description: ${description}`] : [])];
+  const willWrite: string[] = [`Label: ${title.trim() || profile.name}`, ...(description ? [`Description: ${description}`] : [])];
   if (profile.website) willWrite.push(`official website (P856): ${profile.website}`);
   if (profile.twitter) willWrite.push(`X/Twitter (P2002): ${profile.twitter.replace(/^@/, "")}`);
   if (profile.blog) willWrite.push(`official blog (P1581): ${profile.blog}`);
@@ -250,8 +252,18 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
 
       <div className="mt-4 space-y-4">
         <div>
-          <label className="text-xs text-gray-500">Description</label>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description (e.g. 'decentralized exchange on Solana')" className="mt-1 w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
+          <div className="flex items-baseline justify-between">
+            <label className="text-xs text-gray-500">Title</label>
+            <span className={`text-[11px] font-mono ${title.length > 120 ? "text-red-400" : "text-gray-600"}`}>{title.length} / 120</span>
+          </div>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="Item title / label (e.g. 'Solana')" className="mt-1 w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
+        </div>
+        <div>
+          <div className="flex items-baseline justify-between">
+            <label className="text-xs text-gray-500">Description</label>
+            <span className={`text-[11px] font-mono ${description.length > 2000 ? "text-red-400" : "text-gray-600"}`}>{description.length} / 2000</span>
+          </div>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} placeholder="Short description (e.g. 'decentralized exchange on Solana'). Wikidata keeps descriptions short — ~250 characters." className="mt-1 w-full resize-y rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
         </div>
 
         {/* Relevant sources (references) */}
