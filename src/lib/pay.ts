@@ -54,13 +54,31 @@ export async function fetchSolUsdPrice(): Promise<number> {
   return price;
 }
 
-// Live USD price for an arbitrary Solana token (by mint) via Jupiter — used for
-// non-stable SPL assets like ANSEM that price aggregators don't list.
+// Live USD price for an arbitrary Solana token (by mint) — used for non-stable
+// SPL assets like ANSEM. Tries Jupiter's free "lite" price API first, then falls
+// back to DexScreener (works for any token that has an on-chain pool).
 export async function fetchTokenUsdPrice(mint: string): Promise<number> {
-  const res = await fetch(`https://api.jup.ag/price/v2?ids=${mint}`);
+  // 1) Jupiter Lite price API (free, no key).
+  try {
+    const res = await fetch(`https://lite-api.jup.ag/price/v2?ids=${mint}`);
+    if (res.ok) {
+      const json = await res.json();
+      const price = Number(json?.data?.[mint]?.price);
+      if (price && Number.isFinite(price)) return price;
+    }
+  } catch {
+    /* fall through to DexScreener */
+  }
+
+  // 2) DexScreener: use the most-liquid pair's USD price.
+  const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
   if (!res.ok) throw new Error("Failed to fetch token price");
   const json = await res.json();
-  const price = Number(json?.data?.[mint]?.price);
+  const pairs = (json?.pairs ?? []) as { priceUsd?: string; liquidity?: { usd?: number } }[];
+  const best = pairs
+    .filter((p) => Number(p.priceUsd) > 0)
+    .sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0];
+  const price = Number(best?.priceUsd);
   if (!price || !Number.isFinite(price)) throw new Error("Invalid token price response");
   return price;
 }
