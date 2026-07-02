@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getUserId, getUserSolanaWallets } from "@/lib/server/auth";
 import { getSupabase, backendConfigured } from "@/lib/server/db";
-import { getConnection, fetchSolUsdPrice } from "@/lib/pay";
+import { getConnection, fetchSolUsdPrice, fetchTokenUsdPrice } from "@/lib/pay";
 import { PAYMENT_ASSETS, RECIPIENT_WALLET } from "@/lib/web3-config";
 
 export const runtime = "nodejs";
@@ -26,6 +26,9 @@ const STABLE_TOLERANCE = 0.99;
 // SOL price moves between when the client computes the amount and when we
 // verify, so allow generous downside slack while still rejecting dust.
 const SOL_TOLERANCE = 0.9;
+// Memecoins (e.g. ANSEM) are far more volatile, so allow a wider slack so a
+// legitimate payment isn't rejected by a price swing between send and verify.
+const TOKEN_TOLERANCE = 0.7;
 
 export async function POST(req: Request) {
   if (!backendConfigured) return NextResponse.json({ error: "not_configured" }, { status: 501 });
@@ -113,8 +116,12 @@ export async function POST(req: Request) {
     if (asset.kind === "native") {
       const solPrice = await fetchSolUsdPrice(); // USD per SOL
       minRequired = (priceUsd / solPrice) * SOL_TOLERANCE;
-    } else {
+    } else if (asset.stable) {
       minRequired = priceUsd * STABLE_TOLERANCE;
+    } else {
+      // Priced SPL token (e.g. ANSEM): convert USD → tokens at the live price.
+      const tokenPrice = await fetchTokenUsdPrice(asset.mint as string); // USD per token
+      minRequired = (priceUsd / tokenPrice) * TOKEN_TOLERANCE;
     }
     if (receivedUi < minRequired) {
       return NextResponse.json({ error: "amount_too_low" }, { status: 400 });

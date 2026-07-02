@@ -54,6 +54,24 @@ export async function fetchSolUsdPrice(): Promise<number> {
   return price;
 }
 
+// Live USD price for an arbitrary Solana token (by mint) via Jupiter — used for
+// non-stable SPL assets like ANSEM that price aggregators don't list.
+export async function fetchTokenUsdPrice(mint: string): Promise<number> {
+  const res = await fetch(`https://api.jup.ag/price/v2?ids=${mint}`);
+  if (!res.ok) throw new Error("Failed to fetch token price");
+  const json = await res.json();
+  const price = Number(json?.data?.[mint]?.price);
+  if (!price || !Number.isFinite(price)) throw new Error("Invalid token price response");
+  return price;
+}
+
+// USD price of one unit of a payment asset (1 for stablecoins).
+export async function fetchAssetUsdPrice(asset: PaymentAsset): Promise<number> {
+  if (asset.stable) return 1;
+  if (asset.kind === "native") return fetchSolUsdPrice();
+  return fetchTokenUsdPrice(asset.mint as string);
+}
+
 // Build an unsigned transfer transaction for SOL (native) or an SPL token
 // (USDC / USDT). `uiAmount` is in human units, e.g. 1.5 SOL or 49 USDC.
 export async function buildPaymentTransaction(opts: {

@@ -12,7 +12,7 @@ import {
 } from "@/lib/web3-config";
 import {
   buildPaymentTransaction,
-  fetchSolUsdPrice,
+  fetchAssetUsdPrice,
   getConnection,
   getAssetBalance,
   base58Encode,
@@ -44,7 +44,8 @@ function Inner({ plan, amountUsd, onClose }: Props) {
   const { fundWallet } = useFundWallet();
 
   const [asset, setAsset] = useState<PaymentAsset>(PAYMENT_ASSETS[1]); // default USDC
-  const [solPrice, setSolPrice] = useState<number | null>(null);
+  // USD price of one unit of the selected asset (1 for stablecoins).
+  const [unitPrice, setUnitPrice] = useState<number | null>(null);
   const [priceError, setPriceError] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [balance, setBalance] = useState<number | null>(null);
@@ -72,30 +73,33 @@ function Inner({ plan, amountUsd, onClose }: Props) {
     if (wallet && authenticated) checkBalance();
   }, [wallet, authenticated, checkBalance]);
 
-  // Fetch the SOL price when SOL is selected (needed to convert USD -> SOL).
+  // Fetch the selected asset's USD price (needed to convert the USD plan price
+  // into the token amount). Stablecoins resolve to 1 instantly.
   useEffect(() => {
-    if (asset.symbol !== "SOL" || solPrice !== null) return;
     let cancelled = false;
-    fetchSolUsdPrice()
-      .then((p) => !cancelled && setSolPrice(p))
+    setUnitPrice(null);
+    setPriceError(false);
+    fetchAssetUsdPrice(asset)
+      .then((p) => !cancelled && setUnitPrice(p))
       .catch(() => !cancelled && setPriceError(true));
     return () => {
       cancelled = true;
     };
-  }, [asset.symbol, solPrice]);
+  }, [asset]);
 
   const amount = useMemo(() => {
-    if (asset.kind === "spl") return amountUsd; // USDC/USDT are ~1:1 with USD
-    if (!solPrice) return null;
-    return amountUsd / solPrice;
-  }, [asset, amountUsd, solPrice]);
+    if (!unitPrice) return null;
+    return amountUsd / unitPrice;
+  }, [amountUsd, unitPrice]);
+
+  // Sensible precision per asset (memecoins can be large numbers).
+  const fmt = (n: number) => {
+    const dp = asset.symbol === "SOL" ? 4 : asset.stable ? 2 : n >= 1 ? 2 : 6;
+    return n.toLocaleString("en-US", { maximumFractionDigits: dp });
+  };
 
   const amountLabel =
-    amount === null
-      ? asset.symbol === "SOL" && priceError
-        ? "price unavailable"
-        : "…"
-      : `${asset.symbol === "SOL" ? amount.toFixed(4) : amount.toFixed(2)} ${asset.symbol}`;
+    amount === null ? (priceError ? "price unavailable" : "…") : `${fmt(amount)} ${asset.symbol}`;
 
   async function handlePay() {
     if (!wallet || amount === null) return;
@@ -182,7 +186,7 @@ function Inner({ plan, amountUsd, onClose }: Props) {
           <div className="mt-6">
             {/* Asset selector */}
             <p className="text-xs font-medium text-gray-400 mb-2">Pay with</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {PAYMENT_ASSETS.map((a) => (
                 <button
                   key={a.symbol}
@@ -220,7 +224,7 @@ function Inner({ plan, amountUsd, onClose }: Props) {
                   </button>
                 ) : (
                   <span className={`font-mono text-xs ${amount !== null && balance < amount ? "text-red-400" : "text-gray-300"}`}>
-                    {`${balance.toFixed(asset.symbol === "SOL" ? 4 : 2)} ${asset.symbol}`}
+                    {`${fmt(balance)} ${asset.symbol}`}
                   </span>
                 )}
               </div>
@@ -286,7 +290,7 @@ function Inner({ plan, amountUsd, onClose }: Props) {
                     {copied ? "Copied" : "Copy"}
                   </button>
                 </div>
-                <p className="mt-1.5 text-[10px] text-gray-500">Send SOL (and USDC/USDT) on Solana to this address.</p>
+                <p className="mt-1.5 text-[10px] text-gray-500">Send SOL, USDC, USDT or ANSEM on Solana to this address.</p>
               </div>
             )}
           </div>
