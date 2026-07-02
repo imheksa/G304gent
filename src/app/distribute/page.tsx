@@ -22,8 +22,10 @@ export default function DistributePage() {
 }
 
 function DistributeInner() {
+  const params = useSearchParams();
+  const brandParam = params.get("brand") || "";
   const [brands, setBrands] = useState<BrandProfile[]>([]);
-  const [selected, setSelected] = useState<string>("");
+  const [selected, setSelected] = useState<string>(brandParam);
   const [facts, setFacts] = useState<string[]>([]);
   const { canAccess } = useAccess();
   const locked = !canAccess("subscribed");
@@ -32,10 +34,14 @@ function DistributeInner() {
     fetchBrands()
       .then((bs) => {
         setBrands(bs);
-        if (bs.length > 0) setSelected((s) => s || bs[0].name);
+        // Preselect the brand from ?brand= when present, else the first one.
+        const wanted = bs.find((b) => b.name === brandParam)?.name;
+        if (wanted) setSelected(wanted);
+        else if (bs.length > 0) setSelected((s) => s || bs[0].name);
       })
       .catch(() => setBrands([]));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandParam]);
 
   useEffect(() => {
     if (!selected) { setFacts([]); return; }
