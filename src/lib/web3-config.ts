@@ -24,11 +24,14 @@ export const RECIPIENT_WALLET =
   process.env.NEXT_PUBLIC_RECIPIENT_WALLET || DEFAULT_RECIPIENT_WALLET;
 
 export type PaymentAsset = {
-  symbol: "SOL" | "USDC" | "USDT";
+  symbol: "SOL" | "USDC" | "USDT" | "ANSEM";
   label: string;
   kind: "native" | "spl";
   decimals: number;
   mint?: string;
+  // SPL tokens pegged ~1:1 to USD (USDC/USDT). Non-stable priced tokens (SOL,
+  // ANSEM) are converted from USD using a live price.
+  stable?: boolean;
 };
 
 // Accepted assets on Solana mainnet-beta.
@@ -39,6 +42,7 @@ export const PAYMENT_ASSETS: PaymentAsset[] = [
     label: "USD Coin",
     kind: "spl",
     decimals: 6,
+    stable: true,
     mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
   },
   {
@@ -46,7 +50,16 @@ export const PAYMENT_ASSETS: PaymentAsset[] = [
     label: "Tether USD",
     kind: "spl",
     decimals: 6,
+    stable: true,
     mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  },
+  {
+    symbol: "ANSEM",
+    label: "Ansem",
+    kind: "spl",
+    // pump.fun tokens are minted with 6 decimals.
+    decimals: 6,
+    mint: "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
   },
 ];
 
