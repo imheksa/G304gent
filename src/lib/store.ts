@@ -180,9 +180,7 @@ export async function wikidataSubmit(payload: {
   twitter?: string;
   blog?: string;
   instagram?: string;
-  whitepaper?: string;
-  instanceOf?: string;
-  inceptionYear?: string;
+  sources?: string[];
   mode: "create" | "existing";
   qid?: string;
   username?: string;

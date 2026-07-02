@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { fetchBrands, fetchScan, wikidataSearch, wikidataSubmit, wikidataStatus, wikidataDisconnect, type WikidataMatch, type WikidataResult, type WikidataStatus } from "@/lib/store";
+import { fetchBrands, fetchScan, wikidataSubmit, wikidataStatus, wikidataDisconnect, type WikidataResult, type WikidataStatus } from "@/lib/store";
 import { getUserFacts, type BrandProfile } from "@/lib/brand-data";
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
@@ -137,23 +137,11 @@ function DistributeInner() {
   );
 }
 
-const INSTANCE_PRESETS: { label: string; qid: string }[] = [
-  { label: "Cryptocurrency", qid: "Q13479982" },
-  { label: "Blockchain", qid: "Q20514253" },
-  { label: "Business", qid: "Q4830453" },
-];
-
 function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string[] }) {
   const params = useSearchParams();
   const [status, setStatus] = useState<WikidataStatus | null>(null);
-  const [matches, setMatches] = useState<WikidataMatch[]>([]);
-  const [searching, setSearching] = useState(true);
-  const [mode, setMode] = useState<"existing" | "create">("existing");
-  const [qid, setQid] = useState("");
   const [description, setDescription] = useState("");
-  const [instanceOf, setInstanceOf] = useState("");
-  const [whitepaper, setWhitepaper] = useState("");
-  const [inceptionYear, setInceptionYear] = useState("");
+  const [sources, setSources] = useState<string[]>(["", "", ""]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -165,25 +153,13 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
   useEffect(() => { wikidataStatus().then(setStatus).catch(() => setStatus({ configured: false, connected: false })); }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    setSearching(true);
     setResult(null);
     setError("");
     setDescription(facts[0]?.slice(0, 240) ?? "");
-    setInstanceOf("");
-    setWhitepaper("");
-    setInceptionYear("");
-    wikidataSearch(profile.name)
-      .then((m) => {
-        if (cancelled) return;
-        setMatches(m);
-        if (m.length > 0) { setMode("existing"); setQid(m[0].id); } else setMode("create");
-      })
-      .catch(() => { if (!cancelled) setMatches([]); })
-      .finally(() => { if (!cancelled) setSearching(false); });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.name]);
+    setSources(["", "", ""]);
+  }, [profile.name, facts]);
+
+  const setSource = (i: number, v: string) => setSources((s) => s.map((x, j) => (j === i ? v : x)));
 
   const disconnect = async () => { await wikidataDisconnect(); setStatus((s) => (s ? { ...s, connected: false, username: undefined } : s)); };
 
@@ -199,11 +175,8 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
         twitter: profile.twitter,
         blog: profile.blog,
         instagram: profile.instagram,
-        whitepaper,
-        instanceOf,
-        inceptionYear,
-        mode,
-        qid: mode === "existing" ? qid : undefined,
+        sources: sources.map((s) => s.trim()).filter(Boolean),
+        mode: "create",
         username: username || undefined,
         password: password || undefined,
       });
@@ -216,19 +189,16 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
   };
 
   // Client-side preview mirroring the server's property mapping.
-  const willWrite: string[] = [];
-  if (mode === "create") willWrite.push(`Label: ${profile.name}`, ...(description ? [`Description: ${description}`] : []));
-  if (/^Q\d+$/i.test(instanceOf.trim())) willWrite.push(`instance of (P31): ${instanceOf.trim().toUpperCase()}`);
+  const willWrite: string[] = [`Label: ${profile.name}`, ...(description ? [`Description: ${description}`] : [])];
   if (profile.website) willWrite.push(`official website (P856): ${profile.website}`);
   if (profile.twitter) willWrite.push(`X/Twitter (P2002): ${profile.twitter.replace(/^@/, "")}`);
   if (profile.blog) willWrite.push(`official blog (P1581): ${profile.blog}`);
   if (profile.instagram) willWrite.push(`Instagram (P2003): ${profile.instagram.replace(/^@/, "")}`);
-  if (whitepaper.trim()) willWrite.push(`whitepaper (P973): ${whitepaper.trim()}`);
-  if (/^\d{4}$/.test(inceptionYear.trim())) willWrite.push(`inception (P571): ${inceptionYear.trim()}`);
+  const refCount = sources.filter((s) => s.trim()).length;
 
   const oauth = status?.configured;
   const connected = status?.connected;
-  const canSubmit = willWrite.length > 0 && (connected || (!oauth && username && password));
+  const canSubmit = willWrite.length > 1 && (connected || (!oauth && username && password));
 
   return (
     <div className="rounded-xl border border-violet-500/20 bg-gradient-to-b from-violet-500/[0.06] to-gray-900/50 p-6">
@@ -266,90 +236,62 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
             <p className="text-[11px] text-gray-500">
               Create one at{" "}
               <a href="https://www.wikidata.org/wiki/Special:BotPasswords" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Special:BotPasswords</a>{" "}
-              (grant &quot;edit existing pages&quot; + &quot;create, edit, and move pages&quot;). Used once, never stored.
+              (grant &quot;create, edit, and move pages&quot;). Used once, never stored.
             </p>
           </div>
         )}
       </div>
 
-      {searching ? (
-        <p className="mt-4 text-sm text-gray-400">Checking Wikidata for an existing item…</p>
-      ) : (
-        <div className="mt-4 space-y-4">
-          {/* target */}
-          <div className="space-y-2">
-            {matches.length > 0 ? (
-              <>
-                <label className="flex items-center gap-2 text-sm text-gray-300">
-                  <input type="radio" checked={mode === "existing"} onChange={() => setMode("existing")} /> Add to existing item
-                </label>
-                {mode === "existing" && (
-                  <select value={qid} onChange={(e) => setQid(e.target.value)} className="w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white">
-                    {matches.map((m) => <option key={m.id} value={m.id}>{m.id} — {m.label}{m.description ? ` (${m.description})` : ""}</option>)}
-                  </select>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-gray-400">No existing Wikidata item found for &ldquo;{profile.name}&rdquo;.</p>
-            )}
-            <label className="flex items-center gap-2 text-sm text-gray-300">
-              <input type="radio" checked={mode === "create"} onChange={() => setMode("create")} /> Create a new item
-            </label>
-          </div>
-
-          {mode === "create" && (
-            <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description (e.g. 'decentralized exchange on Solana')" className="w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
-          )}
-
-          {/* extra properties */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="text-xs text-gray-500">Instance of (P31)</label>
-              <input value={instanceOf} onChange={(e) => setInstanceOf(e.target.value)} placeholder="Q-ID, e.g. Q13479982" className="mt-1 w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {INSTANCE_PRESETS.map((p) => (
-                  <button key={p.qid} onClick={() => setInstanceOf(p.qid)} className="rounded-full border border-white/10 px-2.5 py-0.5 text-[11px] text-gray-400 hover:bg-white/5 hover:text-cyan-400 transition-colors">{p.label}</button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Inception year (P571)</label>
-              <input value={inceptionYear} onChange={(e) => setInceptionYear(e.target.value)} placeholder="e.g. 2020" className="mt-1 w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-xs text-gray-500">Whitepaper URL (P973 — described at URL)</label>
-              <input value={whitepaper} onChange={(e) => setWhitepaper(e.target.value)} placeholder="https://…/whitepaper.pdf" className="mt-1 w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
-            </div>
-          </div>
-          <p className="text-[11px] text-gray-500">Official website, X, blog and Instagram are pulled from this brand&apos;s profile (My Brands). Find a Q-ID at <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">wikidata.org</a>.</p>
-
-          {/* preview */}
-          <div className="rounded-lg border border-white/5 bg-gray-950/70 p-3">
-            <p className="text-[11px] font-mono uppercase tracking-widest text-gray-500">Will write</p>
-            <ul className="mt-1.5 space-y-0.5 text-xs text-gray-300">
-              {willWrite.length ? willWrite.map((w) => <li key={w}>• {w}</li>) : <li className="text-amber-400/90">Add a website / X handle in My Brands, or fill a property above.</li>}
-            </ul>
-            <p className="mt-2 text-[11px] text-gray-500">Existing items only get properties they don&apos;t already have. Edits are public under your account — only submit true facts, and note Wikidata&apos;s notability rules for new items.</p>
-          </div>
-
-          {error && <p className="text-sm text-red-400">Error: {error}</p>}
-          {result && (
-            <p className="text-sm text-emerald-400">
-              {result.created ? "Created" : result.added.length ? "Updated" : "Already up to date"} —{" "}
-              <a href={result.url} target="_blank" rel="noopener noreferrer" className="underline">{result.id}</a>
-              {result.added.length ? ` (added: ${result.added.join(", ")})` : ""}
-            </p>
-          )}
-
-          <button
-            onClick={submit}
-            disabled={submitting || !canSubmit}
-            className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white hover:from-cyan-400 hover:to-violet-400 transition-all disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? "Submitting…" : "Submit to Wikidata"}
-          </button>
+      <div className="mt-4 space-y-4">
+        <div>
+          <label className="text-xs text-gray-500">Description</label>
+          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description (e.g. 'decentralized exchange on Solana')" className="mt-1 w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
         </div>
-      )}
+
+        {/* Relevant sources (references) */}
+        <div>
+          <label className="text-xs text-gray-500">Relevant sources (up to 3 — attached as references to each statement)</label>
+          <div className="mt-1 space-y-2">
+            {sources.map((s, i) => (
+              <input
+                key={i}
+                value={s}
+                onChange={(e) => setSource(i, e.target.value)}
+                placeholder={`Source URL ${i + 1} (e.g. docs, coingecko, official announcement)`}
+                className="w-full rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600"
+              />
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-gray-500">Official website, X, blog and Instagram are pulled from this brand&apos;s profile (My Brands).</p>
+        </div>
+
+        {/* preview */}
+        <div className="rounded-lg border border-white/5 bg-gray-950/70 p-3">
+          <p className="text-[11px] font-mono uppercase tracking-widest text-gray-500">Will write</p>
+          <ul className="mt-1.5 space-y-0.5 text-xs text-gray-300">
+            {willWrite.map((w) => <li key={w}>• {w}</li>)}
+            {refCount > 0 && <li className="text-gray-500">• with {refCount} reference source{refCount > 1 ? "s" : ""} (P854) on each statement</li>}
+          </ul>
+          <p className="mt-2 text-[11px] text-gray-500">Creates a new Wikidata item. Edits are public under your account — only submit true facts, and note Wikidata&apos;s notability rules. Check it doesn&apos;t already exist at <a href="https://www.wikidata.org" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">wikidata.org</a>.</p>
+        </div>
+
+        {error && <p className="text-sm text-red-400">Error: {error}</p>}
+        {result && (
+          <p className="text-sm text-emerald-400">
+            {result.created ? "Created" : result.added.length ? "Updated" : "Already up to date"} —{" "}
+            <a href={result.url} target="_blank" rel="noopener noreferrer" className="underline">{result.id}</a>
+            {result.added.length ? ` (added: ${result.added.join(", ")})` : ""}
+          </p>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={submitting || !canSubmit}
+          className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-semibold text-white hover:from-cyan-400 hover:to-violet-400 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {submitting ? "Submitting…" : "Submit to Wikidata"}
+        </button>
+      </div>
     </div>
   );
 }
