@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
-import { generateData, getUserFacts, addUserFact, removeUserFact, type BrandData, type CanonicalFact } from "@/lib/brand-data";
+import { generateData, getUserFacts, removeUserFact, type BrandData, type CanonicalFact } from "@/lib/brand-data";
 import { fetchBrandNames, fetchScan, streamScan, AI_ENABLED, type ScanProgressEvent } from "@/lib/store";
 import { EngineIcon } from "@/components/EngineIcon";
 import { ScanProgress, type ScanStepStatus } from "@/components/ScanProgress";
@@ -626,23 +626,10 @@ function AlertsTab({ data }: { data: DashData }) {
 function FactsTab({ data, brand }: { data: DashData; brand: string }) {
   const router = useRouter();
   const [userFacts, setUserFacts] = useState<CanonicalFact[]>([]);
-  const [adding, setAdding] = useState(false);
-  const [text, setText] = useState("");
 
   useEffect(() => {
     setUserFacts(getUserFacts(brand));
   }, [brand]);
-
-  // Adding a fact is the start of distribution: save it, then take the user to
-  // Distribute (with this brand preselected) to publish it to Wikidata.
-  function submit() {
-    const value = text.trim();
-    if (!value) return;
-    setUserFacts(addUserFact(brand, value));
-    setText("");
-    setAdding(false);
-    router.push(`/distribute?brand=${encodeURIComponent(brand)}`);
-  }
 
   const facts: { fact: string; status: string; violations: number; userAdded?: boolean }[] = [
     ...data.canonicalFacts,
@@ -662,31 +649,12 @@ function FactsTab({ data, brand }: { data: DashData; brand: string }) {
             <p className="mt-1 text-xs text-gray-400">Your brand&apos;s source of truth — compared against AI responses</p>
           </div>
           <button
-            onClick={() => setAdding((v) => !v)}
+            onClick={() => router.push(`/distribute?brand=${encodeURIComponent(brand)}`)}
             className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-4 py-2 text-sm font-medium text-cyan-400 hover:bg-cyan-500/10 transition-colors"
           >
-            {adding ? "Cancel" : "+ Add Fact"}
+            + Add Fact
           </button>
         </div>
-
-        {adding && (
-          <div className="mt-4 flex flex-col gap-2 rounded-lg border border-cyan-500/20 bg-gray-950/50 p-4 sm:flex-row">
-            <input
-              autoFocus
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
-              placeholder={`e.g. ${brand} is audited by CertiK`}
-              className="flex-1 rounded-lg border border-white/10 bg-gray-900/80 px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-cyan-500/50 focus:outline-none"
-            />
-            <button
-              onClick={submit}
-              className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
-            >
-              Add Fact
-            </button>
-          </div>
-        )}
 
         <div className="mt-6 space-y-2">
           {facts.map((fact) => (
