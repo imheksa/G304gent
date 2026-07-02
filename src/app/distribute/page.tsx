@@ -213,8 +213,8 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
         <span className="rounded-full bg-violet-500/10 px-2 py-0.5 font-mono text-[10px] text-violet-300">DIRECT</span>
       </div>
 
-      {oauthMsg === "connected" && <p className="mt-2 text-sm text-emerald-400">Wikidata account connected ✓</p>}
-      {oauthMsg === "error" && <p className="mt-2 text-sm text-red-400">Couldn&apos;t connect to Wikidata. Please try again.</p>}
+      {oauthMsg === "connected" && <p className="mt-2 text-sm text-emerald-400">Wikimedia account connected ✓</p>}
+      {oauthMsg === "error" && <p className="mt-2 text-sm text-red-400">Couldn&apos;t connect your Wikimedia account. Please try again.</p>}
 
       {/* Auth */}
       <div className="mt-4 rounded-lg border border-white/5 bg-gray-950/60 p-4">
@@ -229,7 +229,7 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
           <div className="flex flex-col items-start gap-2">
             <p className="text-sm text-gray-300">Connect your Wikimedia account to submit — no password needed.</p>
             <a href="/api/distribute/wikidata/auth" className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white hover:from-cyan-400 hover:to-violet-400 transition-all">
-              Connect Wikidata account
+              Connect Wikimedia account
             </a>
           </div>
         ) : (
