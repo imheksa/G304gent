@@ -11,15 +11,15 @@ const OAUTH_BASE = "https://meta.wikimedia.org/w/rest.php/oauth2";
 const UA = "6304Agent/1.0 (https://geoagents.xyz; GEO distribution)";
 
 // Properties we map. datatype drives how the value is serialized.
-const PROPS: Record<string, { pid: string; label: string; kind: "url" | "extid" | "item" | "year" }> = {
-  instanceOf: { pid: "P31", label: "instance of", kind: "item" },
+const PROPS: Record<string, { pid: string; label: string; kind: "url" | "extid" }> = {
   website: { pid: "P856", label: "official website", kind: "url" },
   twitter: { pid: "P2002", label: "X/Twitter", kind: "extid" },
   blog: { pid: "P1581", label: "official blog", kind: "url" },
   instagram: { pid: "P2003", label: "Instagram", kind: "extid" },
-  whitepaper: { pid: "P973", label: "whitepaper (described at URL)", kind: "url" },
-  inceptionYear: { pid: "P571", label: "inception", kind: "year" },
 };
+
+// Reference (source) property attached to each statement for verifiability.
+const P_REF_URL = "P854"; // reference URL
 
 export type Auth = { cookies?: string; bearer?: string };
 
@@ -153,20 +153,24 @@ function handle(u: string): string {
   return (m ? m[1] : v.replace(/^@/, "")).replace(/\/+$/, "");
 }
 
-function snak(pid: string, kind: string, raw: string) {
-  let datavalue: any;
-  if (kind === "item") {
-    const num = parseInt(raw.replace(/^Q/i, ""), 10);
-    datavalue = { value: { "entity-type": "item", "numeric-id": num }, type: "wikibase-entityid" };
-  } else if (kind === "year") {
-    datavalue = {
-      value: { time: `+${raw}-00-00T00:00:00Z`, timezone: 0, before: 0, after: 0, precision: 9, calendarmodel: "http://www.wikidata.org/entity/Q1985727" },
-      type: "time",
-    };
-  } else {
-    datavalue = { value: raw, type: "string" }; // url + extid both use string value
-  }
-  return { mainsnak: { snaktype: "value", property: pid, datavalue }, type: "statement", rank: "normal" };
+// Reference groups (sources) attached to every statement, for verifiability.
+function buildRefs(sources: string[] | undefined) {
+  const clean = (sources ?? []).map(normUrl).filter(Boolean).slice(0, 3);
+  if (!clean.length) return undefined;
+  return clean.map((url) => ({
+    snaks: { [P_REF_URL]: [{ snaktype: "value", property: P_REF_URL, datavalue: { value: url, type: "string" } }] },
+  }));
+}
+
+function snak(pid: string, value: string, refs?: ReturnType<typeof buildRefs>) {
+  // Both url and external-id datatypes serialize as a plain string value.
+  const claim: any = {
+    mainsnak: { snaktype: "value", property: pid, datavalue: { value, type: "string" } },
+    type: "statement",
+    rank: "normal",
+  };
+  if (refs) claim.references = refs;
+  return claim;
 }
 
 export type WikidataIdentity = {
@@ -176,23 +180,18 @@ export type WikidataIdentity = {
   twitter?: string;
   blog?: string;
   instagram?: string;
-  whitepaper?: string;
-  instanceOf?: string; // QID
-  inceptionYear?: string; // e.g. "2020"
+  sources?: string[]; // up to 3 reference URLs attached to each statement
 };
 
-function normalized(id: WikidataIdentity): { key: string; pid: string; label: string; kind: string; value: string }[] {
-  const out: { key: string; pid: string; label: string; kind: string; value: string }[] = [];
+function normalized(id: WikidataIdentity): { key: string; pid: string; label: string; value: string }[] {
+  const out: { key: string; pid: string; label: string; value: string }[] = [];
   const push = (key: keyof typeof PROPS, value: string) => {
-    if (value) out.push({ key, pid: PROPS[key].pid, label: PROPS[key].label, kind: PROPS[key].kind, value });
+    if (value) out.push({ key, pid: PROPS[key].pid, label: PROPS[key].label, value });
   };
-  if (id.instanceOf && /^Q\d+$/i.test(id.instanceOf.trim())) push("instanceOf", id.instanceOf.trim().toUpperCase());
   push("website", normUrl(id.website || ""));
   push("twitter", id.twitter ? handle(id.twitter) : "");
   push("blog", normUrl(id.blog || ""));
   push("instagram", id.instagram ? handle(id.instagram) : "");
-  push("whitepaper", normUrl(id.whitepaper || ""));
-  if (id.inceptionYear && /^\d{4}$/.test(id.inceptionYear.trim())) push("inceptionYear", id.inceptionYear.trim());
   return out;
 }
 
@@ -218,10 +217,11 @@ export async function submitToWikidata(
   qid?: string
 ): Promise<WikidataResult> {
   const props = normalized(id);
+  const refs = buildRefs(id.sources);
   const token = await csrfToken(auth);
 
   if (mode === "create") {
-    const data: any = { labels: { en: { language: "en", value: id.name } }, claims: props.map((p) => snak(p.pid, p.kind, p.value)) };
+    const data: any = { labels: { en: { language: "en", value: id.name } }, claims: props.map((p) => snak(p.pid, p.value, refs)) };
     if (id.description?.trim()) data.descriptions = { en: { language: "en", value: id.description.trim() } };
     const r = await apiCall(
       { action: "wbeditentity", new: "item", data: JSON.stringify(data), token, assert: "user", summary: "Add project identity via 6304 Agent" },
@@ -241,7 +241,7 @@ export async function submitToWikidata(
   if (toAdd.length === 0) return { id: target, url: `https://www.wikidata.org/wiki/${target}`, added: [], created: false };
 
   const r = await apiCall(
-    { action: "wbeditentity", id: target, data: JSON.stringify({ claims: toAdd.map((p) => snak(p.pid, p.kind, p.value)) }), token, assert: "user", summary: "Add official facts via 6304 Agent" },
+    { action: "wbeditentity", id: target, data: JSON.stringify({ claims: toAdd.map((p) => snak(p.pid, p.value, refs)) }), token, assert: "user", summary: "Add official facts via 6304 Agent" },
     "POST",
     auth
   );

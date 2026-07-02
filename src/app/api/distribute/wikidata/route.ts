@@ -35,9 +35,7 @@ export async function POST(req: Request) {
     twitter: typeof b.twitter === "string" ? b.twitter : undefined,
     blog: typeof b.blog === "string" ? b.blog : undefined,
     instagram: typeof b.instagram === "string" ? b.instagram : undefined,
-    whitepaper: typeof b.whitepaper === "string" ? b.whitepaper : undefined,
-    instanceOf: typeof b.instanceOf === "string" ? b.instanceOf : undefined,
-    inceptionYear: typeof b.inceptionYear === "string" ? b.inceptionYear : undefined,
+    sources: Array.isArray(b.sources) ? b.sources.filter((s: unknown) => typeof s === "string") : undefined,
   };
 
   try {
