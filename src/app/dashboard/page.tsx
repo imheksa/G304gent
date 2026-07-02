@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
 import { generateData, getUserFacts, addUserFact, removeUserFact, type BrandData, type CanonicalFact } from "@/lib/brand-data";
 import { fetchBrandNames, fetchScan, streamScan, AI_ENABLED, type ScanProgressEvent } from "@/lib/store";
@@ -624,6 +624,7 @@ function AlertsTab({ data }: { data: DashData }) {
 }
 
 function FactsTab({ data, brand }: { data: DashData; brand: string }) {
+  const router = useRouter();
   const [userFacts, setUserFacts] = useState<CanonicalFact[]>([]);
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState("");
@@ -632,12 +633,15 @@ function FactsTab({ data, brand }: { data: DashData; brand: string }) {
     setUserFacts(getUserFacts(brand));
   }, [brand]);
 
+  // Adding a fact is the start of distribution: save it, then take the user to
+  // Distribute (with this brand preselected) to publish it to Wikidata.
   function submit() {
     const value = text.trim();
     if (!value) return;
     setUserFacts(addUserFact(brand, value));
     setText("");
     setAdding(false);
+    router.push(`/distribute?brand=${encodeURIComponent(brand)}`);
   }
 
   const facts: { fact: string; status: string; violations: number; userAdded?: boolean }[] = [
