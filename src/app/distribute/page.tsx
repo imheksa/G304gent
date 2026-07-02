@@ -261,9 +261,9 @@ function WikidataCard({ profile, facts }: { profile: BrandProfile; facts: string
         <div>
           <div className="flex items-baseline justify-between">
             <label className="text-xs text-gray-500">Description</label>
-            <span className={`text-[11px] font-mono ${description.length > 2000 ? "text-red-400" : "text-gray-600"}`}>{description.length} / 2000</span>
+            <span className={`text-[11px] font-mono ${description.length > 250 ? "text-red-400" : "text-gray-600"}`}>{description.length} / 250</span>
           </div>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} placeholder="Short description (e.g. 'decentralized exchange on Solana'). Wikidata keeps descriptions short — ~250 characters." className="mt-1 w-full resize-y rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={250} rows={3} placeholder="Short description (e.g. 'decentralized exchange on Solana')" className="mt-1 w-full resize-y rounded-lg border border-white/10 bg-gray-950/70 px-3 py-2 text-sm text-white placeholder:text-gray-600" />
         </div>
 
         {/* Relevant sources (references) */}

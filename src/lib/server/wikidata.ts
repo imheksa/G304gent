@@ -221,8 +221,9 @@ export async function submitToWikidata(
   const token = await csrfToken(auth);
 
   if (mode === "create") {
-    const data: any = { labels: { en: { language: "en", value: id.name } }, claims: props.map((p) => snak(p.pid, p.value, refs)) };
-    if (id.description?.trim()) data.descriptions = { en: { language: "en", value: id.description.trim() } };
+    // Wikidata caps labels and descriptions at 250 characters.
+    const data: any = { labels: { en: { language: "en", value: id.name.slice(0, 250) } }, claims: props.map((p) => snak(p.pid, p.value, refs)) };
+    if (id.description?.trim()) data.descriptions = { en: { language: "en", value: id.description.trim().slice(0, 250) } };
     const r = await apiCall(
       { action: "wbeditentity", new: "item", data: JSON.stringify(data), token, assert: "user", summary: "Add project identity via 6304 Agent" },
       "POST",
