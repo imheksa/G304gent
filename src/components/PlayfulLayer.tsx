@@ -36,6 +36,60 @@ export default function PlayfulLayer() {
         }
       });
       cleanups.push(() => io.disconnect());
+
+      // Per-word stagger for [data-stagger] (plain-text elements only).
+      document.querySelectorAll<HTMLElement>("[data-stagger]").forEach((el) => {
+        const raw = el.textContent || "";
+        el.textContent = "";
+        raw.split(/(\s+)/).forEach((tok) => {
+          if (tok === "" || /^\s+$/.test(tok)) {
+            el.appendChild(document.createTextNode(tok));
+            return;
+          }
+          const span = document.createElement("span");
+          span.className = "stagger-word";
+          span.textContent = tok;
+          el.appendChild(span);
+        });
+        const words = el.querySelectorAll<HTMLElement>(".stagger-word");
+        const run = () =>
+          words.forEach((s, i) => {
+            s.style.transitionDelay = `${i * 0.045}s`;
+            s.classList.add("in");
+          });
+        if (el.getBoundingClientRect().top < window.innerHeight) {
+          requestAnimationFrame(() => requestAnimationFrame(run));
+        } else {
+          const so = new IntersectionObserver(
+            (es) => es.forEach((e) => e.isIntersecting && (run(), so.disconnect())),
+            { threshold: 0.3 }
+          );
+          so.observe(el);
+          cleanups.push(() => so.disconnect());
+        }
+      });
+
+      // Count-up for [data-countup] numeric elements.
+      document.querySelectorAll<HTMLElement>("[data-countup]").forEach((el) => {
+        const target = parseInt(el.textContent || "0", 10);
+        if (!Number.isFinite(target)) return;
+        const animate = () => {
+          const dur = 1200;
+          const start = performance.now();
+          const step = (t: number) => {
+            const p = Math.min(1, (t - start) / dur);
+            el.textContent = String(Math.round(target * (1 - Math.pow(1 - p, 3))));
+            if (p < 1) requestAnimationFrame(step);
+          };
+          requestAnimationFrame(step);
+        };
+        const co = new IntersectionObserver(
+          (es) => es.forEach((e) => e.isIntersecting && (animate(), co.disconnect())),
+          { threshold: 0.6 }
+        );
+        co.observe(el);
+        cleanups.push(() => co.disconnect());
+      });
     }
 
     // --- Custom cursor + magnetic (desktop, motion-safe) ---
@@ -90,6 +144,26 @@ export default function PlayfulLayer() {
         };
         const leave = () => {
           el.style.transform = "";
+        };
+        el.addEventListener("mousemove", move);
+        el.addEventListener("mouseleave", leave);
+        magHandlers.push(() => {
+          el.removeEventListener("mousemove", move);
+          el.removeEventListener("mouseleave", leave);
+          el.style.transform = "";
+        });
+      });
+
+      // Mouse-parallax tilt
+      document.querySelectorAll<HTMLElement>("[data-tilt]").forEach((el) => {
+        const move = (e: MouseEvent) => {
+          const r = el.getBoundingClientRect();
+          const px = (e.clientX - r.left) / r.width - 0.5;
+          const py = (e.clientY - r.top) / r.height - 0.5;
+          el.style.transform = `perspective(1000px) rotateY(${px * 9}deg) rotateX(${-py * 9}deg)`;
+        };
+        const leave = () => {
+          el.style.transform = "perspective(1000px) rotateY(0deg) rotateX(0deg)";
         };
         el.addEventListener("mousemove", move);
         el.addEventListener("mouseleave", leave);

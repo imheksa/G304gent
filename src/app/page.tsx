@@ -8,6 +8,9 @@ import AccountButton from "@/components/AccountButton";
 import CheckoutModal from "@/components/CheckoutModal";
 import PrimaryCTA from "@/components/PrimaryCTA";
 import PlayfulLayer from "@/components/PlayfulLayer";
+import SmoothScroll from "@/components/SmoothScroll";
+import Marquee from "@/components/Marquee";
+import Particles from "@/components/Particles";
 import { PAYMENTS_ENABLED } from "@/lib/web3-config";
 import { fetchBrandNames } from "@/lib/store";
 import { ChipLogo } from "@/components/Logo";
@@ -64,6 +67,7 @@ function Hero() {
   return (
     <section className="relative overflow-hidden bg-gray-950 pt-28 pb-20 lg:pt-36 lg:pb-28">
       <div className="absolute inset-0 bg-grid animate-grid-fade" />
+      <Particles />
       <div className="absolute top-20 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[128px]" />
       <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[128px]" />
 
@@ -79,7 +83,7 @@ function Hero() {
               {t.hero.title}
               <span className="text-gradient">{t.hero.titleHighlight}</span>
             </h1>
-            <p className="mt-6 max-w-xl text-lg text-gray-400 leading-relaxed lg:text-xl">
+            <p data-stagger className="mt-6 max-w-xl text-lg text-gray-400 leading-relaxed lg:text-xl">
               {t.hero.subtitle}
             </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
@@ -115,7 +119,7 @@ function Hero() {
           {/* Right: Visual */}
           <div className="relative hidden lg:flex items-center justify-center">
             <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-violet-500/10 rounded-3xl blur-3xl" />
-            <div className="relative w-full max-w-lg">
+            <div data-tilt className="relative w-full max-w-lg">
               {/* Animated dashboard mockup */}
               <div className="rounded-2xl border border-white/10 bg-gray-900/80 p-6 backdrop-blur-xl shadow-2xl">
                 <div className="flex items-center gap-2 mb-5">
@@ -128,12 +132,12 @@ function Hero() {
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="rounded-xl border border-white/5 bg-gray-950/60 p-4 animate-float" style={{ animationDelay: "0s" }}>
                     <p className="text-[10px] font-mono uppercase tracking-widest text-gray-500">Brand Score</p>
-                    <p className="mt-1 text-2xl font-bold text-cyan-400">78<span className="text-xs text-gray-500">/100</span></p>
+                    <p className="mt-1 text-2xl font-bold text-cyan-400"><span data-countup>78</span><span className="text-xs text-gray-500">/100</span></p>
                     <span className="text-[10px] font-mono text-emerald-400">+5 this week</span>
                   </div>
                   <div className="rounded-xl border border-white/5 bg-gray-950/60 p-4 animate-float" style={{ animationDelay: "1s" }}>
                     <p className="text-[10px] font-mono uppercase tracking-widest text-gray-500">Share of Answer</p>
-                    <p className="mt-1 text-2xl font-bold text-violet-400">42<span className="text-xs text-gray-500">%</span></p>
+                    <p className="mt-1 text-2xl font-bold text-violet-400"><span data-countup>42</span><span className="text-xs text-gray-500">%</span></p>
                     <span className="text-[10px] font-mono text-emerald-400">+8 this week</span>
                   </div>
                 </div>
@@ -850,8 +854,10 @@ export default function Home() {
   return (
     <>
       <PlayfulLayer />
+      <SmoothScroll />
       <Navbar />
       <Hero />
+      <Marquee />
       <QuickScan />
       <Problem />
       <Solution />
