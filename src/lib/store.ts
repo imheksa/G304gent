@@ -159,6 +159,21 @@ export async function wikidataSearch(name: string): Promise<WikidataMatch[]> {
   return (b.matches as WikidataMatch[]) ?? [];
 }
 
+export type DistributionSurface = {
+  key: string;
+  name: string;
+  note: string;
+  listed: boolean | null;
+  url?: string;
+  submitUrl?: string;
+};
+
+// Presence check across the high-authority sources AI engines cite.
+export async function fetchSurfaces(name: string): Promise<DistributionSurface[]> {
+  const { surfaces } = await api(`/api/distribute/surfaces?name=${encodeURIComponent(name)}`);
+  return (surfaces as DistributionSurface[]) ?? [];
+}
+
 // Whether Wikidata OAuth is configured and the browser is connected.
 export async function wikidataStatus(): Promise<WikidataStatus> {
   const res = await fetch("/api/distribute/wikidata/status");
