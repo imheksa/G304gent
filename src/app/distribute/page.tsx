@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { fetchBrands, fetchScan, wikidataSubmit, wikidataStatus, wikidataDisconnect, type WikidataResult, type WikidataStatus } from "@/lib/store";
+import { fetchBrands, fetchScan, wikidataSubmit, wikidataStatus, wikidataDisconnect, fetchSurfaces, type WikidataResult, type WikidataStatus, type DistributionSurface } from "@/lib/store";
 import { getUserFacts, type BrandProfile } from "@/lib/brand-data";
 import AuthGate from "@/components/AuthGate";
 import AccountButton from "@/components/AccountButton";
@@ -120,8 +120,9 @@ function DistributeInner() {
 
             {profile && (
               <div className="relative mt-6">
-                <div className={locked ? "pointer-events-none select-none blur-md" : ""} aria-hidden={locked}>
+                <div className={locked ? "pointer-events-none select-none space-y-6 blur-md" : "space-y-6"} aria-hidden={locked}>
                   <WikidataCard profile={profile} facts={facts} />
+                  <SurfacesCard name={profile.name} />
                 </div>
                 {locked && (
                   <div className="absolute inset-0 flex items-start justify-center pt-24">
@@ -139,6 +140,74 @@ function DistributeInner() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// Presence across the high-authority sources AI engines cite. We can check
+// presence + point to the right submission path (none but Wikidata have an
+// open write API).
+function SurfacesCard({ name }: { name: string }) {
+  const [surfaces, setSurfaces] = useState<DistributionSurface[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setSurfaces(null);
+    fetchSurfaces(name)
+      .then((s) => !cancelled && setSurfaces(s))
+      .catch(() => !cancelled && setSurfaces([]))
+      .finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
+  }, [name]);
+
+  return (
+    <div className="rounded-xl border border-white/5 bg-gray-900/50 p-6">
+      <div className="flex items-center gap-2">
+        <h3 className="text-base font-semibold text-white">AI Distribution Surfaces</h3>
+        <span className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-gray-400">PRESENCE</span>
+      </div>
+      <p className="mt-0.5 text-xs text-gray-500">
+        Other high-authority sources AI engines cite. We check if you&apos;re listed and point you to the submission path.
+      </p>
+
+      {loading ? (
+        <p className="mt-4 text-sm text-gray-400">Checking sources…</p>
+      ) : (
+        <div className="mt-4 space-y-2">
+          {(surfaces ?? []).map((s) => (
+            <div key={s.key} className="flex items-center gap-4 rounded-lg border border-white/5 bg-gray-950/50 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-white">{s.name}</p>
+                <p className="mt-0.5 text-xs text-gray-500">{s.note}</p>
+              </div>
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-mono ${
+                  s.listed === true
+                    ? "bg-emerald-500/10 text-emerald-400"
+                    : s.listed === false
+                    ? "bg-amber-500/10 text-amber-400"
+                    : "bg-gray-500/10 text-gray-400"
+                }`}
+              >
+                {s.listed === true ? "Listed ✓" : s.listed === false ? "Not found" : "Manual"}
+              </span>
+              {s.listed === true && s.url ? (
+                <a href={s.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-xs font-medium text-cyan-400 hover:underline">
+                  View ↗
+                </a>
+              ) : s.submitUrl ? (
+                <a href={s.submitUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 text-xs font-medium text-cyan-400 hover:underline">
+                  Submit ↗
+                </a>
+              ) : (
+                <span className="w-12 shrink-0" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
