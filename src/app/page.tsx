@@ -7,6 +7,7 @@ import { useI18n } from "@/i18n/context";
 import AccountButton from "@/components/AccountButton";
 import CheckoutModal from "@/components/CheckoutModal";
 import PrimaryCTA from "@/components/PrimaryCTA";
+import PlayfulLayer from "@/components/PlayfulLayer";
 import { PAYMENTS_ENABLED } from "@/lib/web3-config";
 import { fetchBrandNames } from "@/lib/store";
 import { ChipLogo } from "@/components/Logo";
@@ -41,6 +42,7 @@ function Navbar() {
           <AccountButton />
           <Link
             href="/dashboard"
+            data-magnetic
             className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
           >
             Live Dashboard
@@ -91,6 +93,7 @@ function Hero() {
               </PrimaryCTA>
               <a
                 href="#solution"
+                data-magnetic
                 className="rounded-lg border border-white/10 bg-white/5 px-8 py-4 text-base font-semibold text-gray-300 hover:bg-white/10 hover:text-white transition-all"
               >
                 {t.hero.ctaSecondary}
@@ -846,6 +849,7 @@ export default function Home() {
 
   return (
     <>
+      <PlayfulLayer />
       <Navbar />
       <Hero />
       <QuickScan />
