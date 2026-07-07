@@ -137,6 +137,33 @@ html.cursor-hover .cursor-dot {
   width: 11px;
   height: 11px;
 }
+/* Contextual cursor label (elements with [data-cursor]) */
+.cursor-text {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-mono), ui-monospace, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: #eaf2ff;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+html.cursor-labeled .cursor-text {
+  opacity: 1;
+}
+html.cursor-labeled .cursor-ring {
+  width: 82px;
+  height: 82px;
+  border-color: rgba(34, 211, 238, 0.9);
+  background: rgba(34, 211, 238, 0.06);
+}
+html.cursor-labeled .cursor-dot {
+  opacity: 0;
+}
 /* Hide the native cursor only while the playful layer is active. */
 html.playful,
 html.playful * {

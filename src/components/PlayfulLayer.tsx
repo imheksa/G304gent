@@ -37,21 +37,51 @@ export default function PlayfulLayer() {
       });
       cleanups.push(() => io.disconnect());
 
-      // Per-word stagger for [data-stagger] (plain-text elements only).
-      document.querySelectorAll<HTMLElement>("[data-stagger]").forEach((el) => {
-        const raw = el.textContent || "";
+      // Per-word stagger reveal. Applied to all headings + [data-stagger].
+      // Gradient-safe: plain text is split into word spans, while nested
+      // elements (e.g. a .text-gradient span) are wrapped and animated as one
+      // unit so their styling stays intact.
+      const splitStagger = (el: HTMLElement): HTMLElement[] => {
+        if (el.dataset.staggered) return [];
+        el.dataset.staggered = "1";
+        const words: HTMLElement[] = [];
+        const nodes = Array.from(el.childNodes);
         el.textContent = "";
-        raw.split(/(\s+)/).forEach((tok) => {
-          if (tok === "" || /^\s+$/.test(tok)) {
-            el.appendChild(document.createTextNode(tok));
-            return;
+        nodes.forEach((node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            (node.textContent || "").split(/(\s+)/).forEach((tok) => {
+              if (tok === "") return;
+              if (/^\s+$/.test(tok)) {
+                el.appendChild(document.createTextNode(tok));
+                return;
+              }
+              const s = document.createElement("span");
+              s.className = "stagger-word";
+              s.textContent = tok;
+              el.appendChild(s);
+              words.push(s);
+            });
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const elem = node as HTMLElement;
+            if (elem.tagName === "BR") {
+              el.appendChild(elem);
+              return;
+            }
+            const s = document.createElement("span");
+            s.className = "stagger-word";
+            s.appendChild(elem);
+            el.appendChild(s);
+            words.push(s);
+          } else {
+            el.appendChild(node);
           }
-          const span = document.createElement("span");
-          span.className = "stagger-word";
-          span.textContent = tok;
-          el.appendChild(span);
         });
-        const words = el.querySelectorAll<HTMLElement>(".stagger-word");
+        return words;
+      };
+
+      document.querySelectorAll<HTMLElement>("h1, h2, [data-stagger]").forEach((el) => {
+        const words = splitStagger(el);
+        if (!words.length) return;
         const run = () =>
           words.forEach((s, i) => {
             s.style.transitionDelay = `${i * 0.045}s`;
@@ -101,7 +131,9 @@ export default function PlayfulLayer() {
       dot.className = "cursor-dot";
       const ring = document.createElement("div");
       ring.className = "cursor-ring";
-      document.body.append(dot, ring);
+      const label = document.createElement("div");
+      label.className = "cursor-text";
+      document.body.append(dot, ring, label);
 
       let mx = window.innerWidth / 2;
       let my = window.innerHeight / 2;
@@ -117,7 +149,9 @@ export default function PlayfulLayer() {
       const loop = () => {
         rx += (mx - rx) * 0.18;
         ry += (my - ry) * 0.18;
-        ring.style.transform = `translate(${rx}px, ${ry}px) translate(-50%, -50%)`;
+        const t = `translate(${rx}px, ${ry}px) translate(-50%, -50%)`;
+        ring.style.transform = t;
+        label.style.transform = t;
         raf = requestAnimationFrame(loop);
       };
       window.addEventListener("mousemove", onMove);
@@ -125,10 +159,18 @@ export default function PlayfulLayer() {
 
       const interactive = "a, button, [data-magnetic], [role='button'], input, select, textarea";
       const over = (e: Event) => {
-        if ((e.target as Element)?.closest?.(interactive)) root.classList.add("cursor-hover");
+        const t = e.target as Element;
+        if (t?.closest?.(interactive)) root.classList.add("cursor-hover");
+        const c = t?.closest?.("[data-cursor]") as HTMLElement | null;
+        if (c) {
+          label.textContent = c.dataset.cursor || "";
+          root.classList.add("cursor-labeled");
+        }
       };
       const out = (e: Event) => {
-        if ((e.target as Element)?.closest?.(interactive)) root.classList.remove("cursor-hover");
+        const t = e.target as Element;
+        if (t?.closest?.(interactive)) root.classList.remove("cursor-hover");
+        if (t?.closest?.("[data-cursor]")) root.classList.remove("cursor-labeled");
       };
       document.addEventListener("mouseover", over);
       document.addEventListener("mouseout", out);
@@ -182,7 +224,8 @@ export default function PlayfulLayer() {
         magHandlers.forEach((fn) => fn());
         dot.remove();
         ring.remove();
-        root.classList.remove("playful", "cursor-hover");
+        label.remove();
+        root.classList.remove("playful", "cursor-hover", "cursor-labeled");
       });
     }
 

@@ -46,6 +46,7 @@ function Navbar() {
           <Link
             href="/dashboard"
             data-magnetic
+            data-cursor="Open"
             className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-medium text-white hover:from-cyan-400 hover:to-violet-400 transition-all"
           >
             Live Dashboard
@@ -98,6 +99,7 @@ function Hero() {
               <a
                 href="#solution"
                 data-magnetic
+                data-cursor="Explore"
                 className="rounded-lg border border-white/10 bg-white/5 px-8 py-4 text-base font-semibold text-gray-300 hover:bg-white/10 hover:text-white transition-all"
               >
                 {t.hero.ctaSecondary}
@@ -119,7 +121,7 @@ function Hero() {
           {/* Right: Visual */}
           <div className="relative hidden lg:flex items-center justify-center">
             <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-violet-500/10 rounded-3xl blur-3xl" />
-            <div data-tilt className="relative w-full max-w-lg">
+            <div data-tilt data-cursor="Live" className="relative w-full max-w-lg">
               {/* Animated dashboard mockup */}
               <div className="rounded-2xl border border-white/10 bg-gray-900/80 p-6 backdrop-blur-xl shadow-2xl">
                 <div className="flex items-center gap-2 mb-5">
@@ -323,6 +325,7 @@ function Features() {
           {items.map((f) => (
             <div
               key={f.title}
+              data-cursor="View"
               className="card-glow group rounded-xl border border-white/5 bg-gray-900/50 p-8 backdrop-blur-sm hover:border-cyan-500/20 transition-all"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400 group-hover:bg-cyan-500/20 transition-colors">
@@ -366,6 +369,7 @@ function Pricing() {
           {plans.map((plan, idx) => (
             <div
               key={plan.name}
+              data-cursor="Choose"
               className={`group relative flex flex-col rounded-xl p-8 backdrop-blur-sm transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl animate-fade-in-up ${
                 plan.popular
                   ? "border border-cyan-500/30 bg-gradient-to-b from-cyan-500/10 to-violet-500/10 shadow-lg shadow-cyan-500/10 hover:shadow-cyan-500/20"
